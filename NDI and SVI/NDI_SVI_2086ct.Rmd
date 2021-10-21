@@ -1,0 +1,1020 @@
+---
+title: "NDI and SVI"
+author: "Jiayi Zhou(jz3336)"
+date: "5/16/2021"
+output: 
+  word_document: default
+editor_options:
+  chunk_output_type: consle
+---
+## Aim
+In this RMD, we have documented the process of constructing an Neighborhood Deprivation Index (NDI) following a developed method. We have also imported the Social Vulnerability Index (SVI) data from the CDC and tested the correlation between NDI and the SVI for census tracts in the New York City.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(tigris_class = "sf")
+```
+
+```{r, include=FALSE}
+library(devtools)
+
+library(ggbiplot)
+library(stats)
+library(factoextra)
+library(cluster)
+
+library(tidycensus)
+library(tidyverse)
+
+library(psych)
+library(tigris)
+library(sf)
+library(Amelia)
+library(patchwork)
+library(rgdal)
+
+library(viridis)
+library(wesanderson)
+```
+
+## NDI Associated Variables:
+Based on a review of literature, 23 census variables that have been used consistently to approximate neighborhood-level environments for possible inclusion in the deprivation index.
+ 
+## Candidate SEP variables (n = 23)
+Source: US Census American Communities Survey (2015-2019)
+**Education (among adults aged > 25)**
+% < High School	 	 
+% BA or more	
+**Employment (among adult labor force, aged 20-64)**
+% unemployed
+% males in labor force 	 	 
+% females in labor force 	 	 
+**Housing**
+% renter occupied (among occupied units)	 	 
+% vacant housing units (among total housing units)	 	 
+% crowded (> 1 occupant per room, among occupied housing units)
+**Occupation (among full-time, year-round civilian employed population)**
+% adults in management or professional occupations 
+**Income**
+% households in poverty (< 200% Federal Poverty Line)	 
+% Families w/ annual income < $35,000 (2009 inflation-adjusted)	 	 
+% female householders with children aged < 18	 	 
+% households w/ public assistance income	
+% households w/ Food Stamp benefits (in past 12 months)	 	 
+Median household income (in the past 12 months)	 	 
+% renter or owner housing costs in excess of 30% household income (in past 12 months)
+**Racial composition**
+% African American (non-Hispanic)
+% non-White (calculated as 1 - % non-Hispanic White population) 
+% Hispanic
+**Residential Stability**
+% living in the same house one year ago			
+% Foreign-born			
+% not a U.S. citizen
+**Language**
+% speak English less than “very well” (among pop > 5 years old who speak a language other than English at home)	 	 
+
+## Check the ACS variables
+```{r, eval=FALSE, include=FALSE}
+acs_19 <- load_variables(2019, "acs5", cache = TRUE)
+
+View(acs_19)
+```
+
+## All the Wariables for Fisrt PAC from ACS:
+```{r, include=FALSE}
+edu_belowHS_male = sprintf("B15002_%0.3d",seq(3, 10, by = 1))
+edu_belowHS_female = sprintf("B15002_%0.3d",seq(20, 27, by = 1))
+edu_BA_more = c("B15002_015","B15002_016","B15002_017","B15002_018","B15002_032","B15002_033","B15002_034","B15002_035")
+edu_var = c(edu_belowHS_female, edu_belowHS_male, edu_BA_more,"B15002_002", "B15002_019")
+
+unempl_male = sprintf("B23001_%0.3d",seq(15, 71, by = 7))
+unempl_female = sprintf("B23001_%0.3d",seq(101, 157, by = 7))
+labor_force_male = sprintf("B23001_%0.3d",seq(11, 67, by = 7))
+labor_force_female = sprintf("B23001_%0.3d",seq(97, 153, by = 7))
+unempl_var = c("B23001_002", "B23001_088","B23001_001","B23001_003","B23001_089",
+               labor_force_female,labor_force_male, unempl_male, unempl_female)
+
+
+housing_var = c("B25003_001","B25002_001","B25002_003", "B25003_003",
+                "B25014_001", "B25014_005", "B25014_006", "B25014_007",
+                "B25014_011", "B25014_012", "B25014_013", "B25070_007",
+                "B25070_008","B25070_009","B25070_010","B25070_011","B25070_001")
+
+occup_var = c("C24010_001", "C24010_003","C24010_040")
+
+poverty_var = c("B17010_001", "B17010_002",
+                "B11005_007","B11005_010","B11005_001",
+                "B19057_001","B19057_002",
+                "B99221_002","B99221_001",
+                "B19013_001",
+                "B19001_001", "B19001_002",
+                "B19001_003", "B19001_004", 
+                "B19001_005", "B19001_006", "B19001_007")
+
+racial_var = c("B03002_004", "B03002_003", "B03002_012", "B03002_001")
+
+stability_var = c("B07007_001", "B07007_006", "B07007_003", "B07007_005")
+
+language_var = c("B16005_001","B16005_007", "B16005_008","B16005_012","B16005_013",
+                 "B16005_017", "B16005_018", "B16005_022", "B16005_023",
+                 "B16005_029", "B16005_030", "B16005_034", "B16005_035",
+                 "B16005_039", "B16005_040", "B16005_044", "B16005_045")
+
+c_var = c(edu_var, unempl_var, housing_var, occup_var, poverty_var, racial_var,stability_var,language_var)
+```
+
+#Pulling Census Data
+```{r}
+exclusion_table = read.csv("EXCLUSION_LIST_20210628.csv")
+
+view(exclusion_table)
+```
+
+```{r, include=FALSE}
+#pulling data
+nyc_data = 
+  get_acs(geography = "tract", variables =c_var,
+                    state = "NY",  
+                    county = c('Bronx County', 'Kings County', 
+                        'New York County', 'Queens County', 'Richmond County'),
+                    year = 2019,
+                    output = "wide")
+
+
+total_left = exclusion_table %>% filter(flag_exclude_FINAL == 0) %>% select(GEOID)
+
+total_left = as.vector(total_left$GEOID)
+
+nyc_acs_data = nyc_data %>%
+  filter(GEOID %in% total_left) %>% 
+  mutate(pct_noHS = 
+           (B15002_003E+B15002_004E+B15002_005E+B15002_006E+B15002_007E+B15002_008E+B15002_009E+B15002_010E+B15002_020E+B15002_021E+B15002_022E+B15002_023E+B15002_024E+B15002_025E+B15002_026E+B15002_027E)/(B15002_002E+B15002_019E),
+         pct_BAmore = 
+           1-((B15002_015E+B15002_016E+B15002_017E+B15002_018E+B15002_032E+B15002_033E+B15002_034E+B15002_035E)/(B15002_002E+B15002_019E)),
+         pct_unempl = 
+           (B23001_015E+B23001_022E+B23001_029E+B23001_036E+
+            B23001_043E+B23001_050E+B23001_057E+B23001_064E+
+            B23001_071E+B23001_101E+B23001_108E+B23001_115E+B23001_122E+
+            B23001_129E+B23001_136E+B23001_143E+B23001_150E+B23001_157E)/
+           (B23001_001E-B23001_003E-B23001_089E),
+         pct_male_labor_force = 
+           1-((B23001_011E+B23001_018E+B23001_025E+B23001_032E+B23001_039E+B23001_046E+B23001_053E+B23001_060E+B23001_067E)/(B23001_002E-B23001_003E)),
+         pct_female_labor_force = 
+           1-((B23001_097E+B23001_104E+B23001_111E+B23001_118E+B23001_125E+B23001_132E+B23001_139E+B23001_146E+B23001_153E)/(B23001_088E-B23001_089E)),
+         pct_rented = 
+           B25003_003E/B25003_001E,
+         pct_vacant = B25002_003E/B25002_001E,
+         pct_crowded = (B25014_005E+B25014_006E+B25014_007E+B25014_011E+B25014_012E+B25014_013E)/B25014_001E,
+         pct_mgmt = 1-((C24010_003E+C24010_040E)/C24010_001E),
+         pct_poverty = B17010_002E/B17010_001E,
+         pct_FHH = (B11005_007E+B11005_010E)/B11005_001E,
+         pct_under35K = (B19001_002E+B19001_003E+B19001_004E+B19001_005E+B19001_006E+B19001_007E)/B19001_001E,
+         pct_pubassist = B19057_002E/B19057_001E,
+         pct_foodstamp = B99221_002E/B99221_001E,
+         median_HH_income = -log(B19013_001E),
+         pct_30cost = 
+           (B25070_007E+B25070_008E+B25070_009E+B25070_010E+B25070_011E)/B25070_001E,
+         pct_Black = B03002_004E/B03002_001E,
+         pct_nonWhite = 1-(B03002_003E/B03002_001E),
+         pct_Hispanic = B03002_012E/B03002_001E,
+         ##ICE = -((B03002_003E-(1-B03002_003E))/B03002_001E),
+         pct_E_notwell = (B16005_007E+B16005_008E+B16005_012E+B16005_013E+B16005_017E+B16005_018E+B16005_022E+B16005_023E+B16005_029E+B16005_030E+B16005_034E+B16005_035E+B16005_039E+B16005_040E+B16005_044E+B16005_045E)/B16005_001E,
+         pct_samehouse = -B07007_006E/B07007_001E,
+         pct_foreignborn = B07007_003E/B07007_001E,
+         pct_notcitizen = B07007_005E/B07007_001E)%>% 
+  mutate(NAME = gsub(" County, New York", "", NAME)) %>%
+  select(GEOID, NAME,
+         pct_noHS,pct_BAmore,
+         pct_unempl, pct_male_labor_force,pct_female_labor_force,
+         pct_rented, pct_vacant,pct_crowded,
+         pct_mgmt, pct_poverty, pct_under35K, pct_FHH, pct_pubassist, pct_foodstamp,pct_30cost,
+         median_HH_income,
+         pct_Black,pct_Hispanic,pct_nonWhite,pct_E_notwell,
+         pct_samehouse, pct_foreignborn, pct_notcitizen)
+
+missmap(nyc_acs_data)
+
+nyc_acs_data = nyc_acs_data %>% drop_na()
+
+missmap(nyc_acs_data)
+```
+
+
+
+##Step 1: City Wide: Dimensionality Reduction (Manual)
+```{r, include=FALSE}
+values =
+  nyc_acs_data %>% 
+  select(pct_noHS,pct_BAmore,
+         pct_unempl, pct_male_labor_force,pct_female_labor_force,
+         pct_rented, pct_vacant,pct_crowded,
+         pct_mgmt, pct_poverty, pct_under35K, pct_FHH, pct_pubassist, pct_foodstamp,pct_30cost,
+         median_HH_income,
+         pct_Black,pct_Hispanic,pct_nonWhite,pct_E_notwell,
+         pct_samehouse, pct_foreignborn, pct_notcitizen)
+
+missmap(values)
+#values[values == 0] <- NA
+```
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df = apply(values, 2, scale)
+#scaled_df[is.na(scaled_df)] = 0  #assign 0 to NA values,.
+head(scaled_df)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var.cov = cov(scaled_df)
+ndi_var.eigen = eigen(ndi_var.cov) #PC1-5
+str(ndi_var.eigen)
+```
+
+```{r, include=FALSE}
+pca_firstcitywide_rotated <- psych::principal(scaled_df, rotate="varimax", nfactors=5, scores=TRUE)
+print(pca_firstcitywide_rotated$loadings[,1:5])
+```
+
+
+##Step 2: Stratified PCA (5 boroughs)
+
+####Bronx County
+```{r, include=FALSE}
+values_bronx=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36005" )) %>% 
+  select(pct_noHS,pct_BAmore,
+pct_unempl,pct_male_labor_force, pct_female_labor_force, 
+pct_rented,pct_vacant,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,pct_foodstamp,pct_30cost,median_HH_income,
+pct_Black, pct_Hispanic,pct_nonWhite,pct_E_notwell,
+pct_samehouse,pct_foreignborn, pct_notcitizen)
+
+#values_bronx[values_bronx == 0] <- NA
+```
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values_bronx, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df_b = apply(values_bronx, 2, scale)
+#scaled_df_b[is.na(scaled_df_b)] = 0  #assign 0 to NA values, no variance? not sure if ok.
+head(scaled_df_b)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var_b.cov = cov(scaled_df_b)
+ndi_var_b.eigen = eigen(ndi_var_b.cov) #PC5
+str(ndi_var_b.eigen)
+```
+
+```{r, include=FALSE}
+pca_bronx_rotated <- psych::principal(scaled_df_b, rotate="varimax", nfactors=5, scores=TRUE)
+print(pca_bronx_rotated$loadings[,1:5])
+```
+
+####Kings County
+```{r, include=FALSE}
+values_kings=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36047" )) %>% 
+  select(pct_noHS,pct_BAmore,
+pct_unempl,pct_male_labor_force, pct_female_labor_force, 
+pct_rented,pct_vacant,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,pct_foodstamp,pct_30cost,median_HH_income,
+pct_Black, pct_Hispanic,pct_nonWhite,pct_E_notwell,
+pct_samehouse,pct_foreignborn, pct_notcitizen)
+  
+#values_kings[values_kings == 0] <- NA
+```
+
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values_kings, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df_k = apply(values_kings, 2, scale)
+#scaled_df_k[is.na(scaled_df_k)] = 0  #assign 0 to NA values, no variance? not sure if ok.
+head(scaled_df_k)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var_k.cov = cov(scaled_df_k)
+ndi_var_k.eigen = eigen(ndi_var_k.cov) #PC5
+str(ndi_var_k.eigen)
+```
+
+
+```{r, include=FALSE}
+pca_kings_rotated <- psych::principal(scaled_df_k, rotate="varimax", nfactors=5, scores=TRUE)
+print(pca_kings_rotated$loadings[,1:5])
+```
+
+
+####New York County
+```{r, include=FALSE}
+values_NY=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36061" )) %>% 
+  select(pct_noHS,pct_BAmore,
+pct_unempl,pct_male_labor_force, pct_female_labor_force, 
+pct_rented,pct_vacant,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,pct_foodstamp,pct_30cost,median_HH_income,
+pct_Black, pct_Hispanic,pct_nonWhite,pct_E_notwell,
+pct_samehouse,pct_foreignborn, pct_notcitizen)
+
+  missmap(values_NY)
+#values_NY[values_NY == 0] <- NA
+```
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values_NY, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df_ny = apply(values_NY, 2, scale)
+#scaled_df_ny[is.na(scaled_df_ny)] = 0  #assign 0 to NA values, no variance? not sure if ok.
+head(scaled_df_ny)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var_ny.cov = cov(scaled_df_ny)
+ndi_var_ny.eigen = eigen(ndi_var_ny.cov) #PC4
+str(ndi_var_ny.eigen)
+```
+
+```{r, include=FALSE}
+pca_ny_rotated <- psych::principal(scaled_df_ny, rotate="varimax", nfactors=4, scores=TRUE)
+print(pca_ny_rotated$loadings[,1:4])
+```
+
+
+
+#### Queens County
+```{r, include=FALSE}
+values_queens=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36081" )) %>% 
+  select(pct_noHS,pct_BAmore,
+pct_unempl,pct_male_labor_force, pct_female_labor_force, 
+pct_rented,pct_vacant,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,pct_foodstamp,pct_30cost,median_HH_income,
+pct_Black, pct_Hispanic,pct_nonWhite,pct_E_notwell,
+pct_samehouse,pct_foreignborn, pct_notcitizen)
+
+  missmap(values_queens)
+#values_queens[values_queens == 0] <- NA
+```
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values_queens, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df_q = apply(values_queens, 2, scale)
+#scaled_df_q[is.na(scaled_df_q)] = 0  #assign 0 to NA values, no variance? not sure if ok.
+head(scaled_df_q)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var_q.cov = cov(scaled_df_q)
+ndi_var_q.eigen = eigen(ndi_var_q.cov) #PC6
+str(ndi_var_q.eigen)
+```
+
+```{r, include=FALSE}
+pca_queens_rotated <- psych::principal(scaled_df_q, rotate="varimax", nfactors=6, scores=TRUE)
+print(pca_queens_rotated$loadings[,1:6])
+```
+
+
+#### Richmond County
+```{r, include=FALSE}
+values_Richmond=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36085" )) %>% 
+  select(pct_noHS,pct_BAmore,
+pct_unempl,pct_male_labor_force, pct_female_labor_force, 
+pct_rented,pct_vacant,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,pct_foodstamp,pct_30cost,median_HH_income,
+pct_Black, pct_Hispanic,pct_nonWhite,pct_E_notwell,
+pct_samehouse,pct_foreignborn, pct_notcitizen)
+#values_Richmond[values_Richmond == 0] <- NA
+```
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values_Richmond, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df_r = apply(values_Richmond, 2, scale)
+#scaled_df_r[is.na(scaled_df_r)] = 0  #assign 0 to NA values, no variance? not sure if ok.
+head(scaled_df_r)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var_r.cov = cov(scaled_df_r)
+ndi_var_r.eigen = eigen(ndi_var_r.cov) #PC6
+str(ndi_var_r.eigen)
+```
+
+```{r, include=FALSE}
+pca_richmond_rotated <- psych::principal(scaled_df_r, rotate="varimax", nfactors=6, scores=TRUE)
+print(pca_richmond_rotated$loadings[,1:6])
+```
+
+
+## Summary:
+**Retained in the initial city-wide** (only > 0.4 or < -0.4 in the first component, and cannot be > 0.4 or < -0.4 in more then one component):
+
+pct_unempl,
+pct_rented,pct_crowded,
+pct_poverty,pct_under35K,pct_pubassist,median_HH_income,
+pct_nonWhite,pct_E_notwell
+
+
+*After doing the stratified PAC, we have the following variables loaded strongly borough-level PCA   solutions:
+**NEW_B** 
+pct_noHS,pct_BAmore,
+pct_rented,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,pct_30cost,median_HH_income,
+pct_notcitizen
+
+**NEW_K**
+pct_unempl, 
+pct_rented,
+pct_poverty,pct_pubassist,
+pct_Hispanic
+
+**NEW_N**
+pct_BAmore,
+pct_unempl,
+pct_crowded,
+pct_mgmt,
+pct_poverty,pct_FHH,pct_pubassist,median_HH_income,
+pct_Black,pct_nonWhite
+
+**NEW_Q**
+pct_noHS,
+pct_crowded,
+pct_poverty,median_HH_income,
+pct_Hispanic,pct_E_notwell,
+pct_foreignborn, pct_notcitizen
+
+**NEW_R**
+pct_male_labor_force, 
+pct_rented,pct_vacant,pct_crowded,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,median_HH_income,
+pct_Black,pct_E_notwell,
+pct_notcitizen
+
+**more then 2 boroughs**:
+pct_noHS,pct_BAmore,
+pct_unempl,
+pct_rented,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_FHH,pct_pubassist,median_HH_income,
+pct_Hispanic, pct_Black, pct_E_notwell
+pct_notcitizen
+
+
+**less then 0.16:**
+bronx:(pct_Black)
+kings:(pct_notcitizen)
+queens:(pct_unempl,pct_FHH,pct_pubassist)
+
+
+## Included in the second city-wide:(only > 0.4 or < -0.4 in one component)
+_from stratified_
+pct_noHS,pct_BAmore,
+pct_rented,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,median_HH_income,
+pct_Hispanic, pct_E_notwell
+  +
+_from first city-wide_
+pct_unempl,
+pct_rented,pct_crowded,
+pct_poverty,pct_under35K,pct_pubassist,median_HH_income,
+pct_nonWhite,pct_E_notwell
+
+
+**NEW TOTAL**
+pct_noHS,pct_BAmore,
+pct_unempl，
+pct_rented,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_pubassist, median_HH_income,
+pct_nonWhite,pct_Hispanic, pct_E_notwell
+
+## Second City-wide:
+```{r, include=FALSE}
+values_s =
+  nyc_acs_data %>% 
+  select(pct_noHS,pct_BAmore,
+pct_unempl,
+pct_rented,pct_crowded,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_pubassist, median_HH_income,
+pct_nonWhite,pct_Hispanic, pct_E_notwell)
+
+missmap(values_s)
+#values[values == 0] <- NA(0% are still meaningful)
+```
+
+```{r, include=FALSE}
+# compute variance of each variable
+# will see standarization is needed
+apply(values_s, 2, var, na.rm = TRUE)
+```
+
+```{r, include=FALSE}
+# create new data frame with centered variables
+scaled_df_s = apply(values_s, 2, scale)
+#scaled_df[is.na(scaled_df)] = 0  #assign 0 to NA values,.
+head(scaled_df_s)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi_var_s.cov = cov(scaled_df_s)
+ndi_var_s.eigen = eigen(ndi_var_s.cov) #PC3
+str(ndi_var_s.eigen)
+```
+
+```{r, include=FALSE}
+pca_secondcitywide_rotated <- psych::principal(scaled_df_s, rotate="varimax", nfactors=3, scores=TRUE)
+print(pca_secondcitywide_rotated$loadings[,1:3])
+```
+above 0.25 on first:
+pct_BAmore,pct_unempl,pct_mgmt,pct_poverty,pct_under35K,pct_pubassist,median_HH_income,ICE,
+pct_Hispanic,pct_nonWhite
+
+deleted:
+pct_Hispanic,median_HH_income,
+
+**after omition:**
+pct_BAmore,
+pct_unempl，
+pct_mgmt,
+pct_poverty,pct_under35K,pct_pubassist,
+pct_nonWhite
+
+##Step 3: Final City-Wide with retained 5 vars (Manually) 
+```{r, include=FALSE}
+# create new data frame with centered variables
+NDI_df = nyc_acs_data %>% 
+  select(pct_BAmore,
+pct_unempl,
+pct_mgmt,
+pct_poverty,pct_under35K,pct_pubassist,
+pct_nonWhite)
+
+missmap(NDI_df)
+scaled_ndi_df = apply(NDI_df, 2, scale)
+#scaled_ndi_df[is.nan(scaled_ndi_df)] = 0  #assign 0 to NA values, no variance? not sure if ok.
+head(scaled_ndi_df)
+
+summary(NDI_df)
+
+summary(scaled_ndi_df)
+```
+
+```{r, include=FALSE}
+# Calculate eigenvalues & eigenvectors
+ndi.cov = cov(scaled_ndi_df)
+ndi.eigen = eigen(ndi.cov)
+str(ndi.eigen)
+```
+
+```{r}
+PVE = ndi.eigen$values / sum(ndi.eigen$values) #61%
+
+PVE_initial = ndi_ini_var.eigen$values /sum(ndi_ini_var.eigen$values) #53%
+```
+
+```{r, include=FALSE}
+pca_ndi_rotated = psych::principal(scaled_ndi_df, rotate="none", nfactors=1, scores=TRUE)
+NDI_score = pca_ndi_rotated$scores[,1]
+
+NDI_score = as.matrix(NDI_score)
+```
+
+```{r}
+summary(NDI_score)
+```
+
+```{r, include=FALSE}
+NDI_2086=
+  data.frame(GEOID = nyc_acs_data[,1], NAME = nyc_acs_data[,2], NDI_score) %>%
+  separate(NAME, 
+           into = c("Tract", "County"), 
+           sep = ",") %>% 
+  mutate(County = str_trim(County), FIPS = GEOID) %>% 
+  select(GEOID, FIPS, Tract, County, NDI_score)
+
+NDI_2086$FIPS = substr(NDI_2086$FIPS, 0, 5)
+
+View(NDI_2086)
+```
+
+## save the data output
+```{r, include=FALSE}
+#write.csv(NDI_2086, "~/Documents/NDI/NDI analysis/NDI.NYC.2086t.csv")
+```
+
+
+```{r, include=FALSE}
+NDI_with_scaled_score = NDI_2086 %>% 
+  dplyr::mutate(NDI_scaled= dplyr::ntile(NDI_score, 4))
+```
+
+
+```{r, include=FALSE}
+summary(NDI_with_scaled_score)
+```
+
+```{r, include=FALSE}
+library(nycgeo)
+```
+
+```{r}
+map_ndi_with_score = nyc_boundaries(geography = "tract") %>% 
+  left_join(NDI_2086, by = c("geoid" = "GEOID")) %>% 
+  ggplot() +
+  geom_sf(aes(fill = NDI_score),color = NA) +
+  theme_minimal() + 
+  theme(axis.text = element_blank(),legend.position = "bottom") +
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  scale_fill_gradient(low = "OldLace", high = "firebrick4")+
+  labs(fill = "NDI",
+       title = "Neighborhood Deprivation Index",
+       subtitle = "unscaled",
+       caption = "Source: 2015-2019 5-year ACS estimates")
+```
+
+
+```{r}
+map_ndi_with_scaled_score = nyc_boundaries(geography = "tract") %>% 
+  left_join(NDI_with_scaled_score, by = c("geoid" = "GEOID")) %>% 
+  ggplot() +
+  geom_sf(aes(fill = NDI_scaled),color = NA) +
+  theme_minimal() + 
+  theme(axis.text = element_blank(),legend.position = "bottom") +
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  scale_fill_gradient(low = "OldLace", high = "firebrick4")+
+  labs(fill = "NDI",
+       title = "Neighborhood Deprivation Index",
+       subtitle = "scaled",
+       caption = "Source: 2015-2019 5-year ACS estimates")
+```
+
+```{r}
+map_ndi_with_score + map_ndi_with_scaled_score
+```
+
+
+##SVI
+
+```{r}
+SDI_df = read_csv("~/Documents/NDI/NDI analysis/CDC SVI/NewYork.csv") %>% 
+  mutate(FIPS = as.character(FIPS)) %>% 
+  filter(FIPS %in% NDI_2086$GEOID) %>% 
+  select(FIPS, LOCATION, COUNTY, RPL_THEMES) %>% 
+  rename(GEOID = FIPS) %>% 
+  filter(RPL_THEMES != -999.0000)
+
+SVI_county = read_csv("~/Documents/NDI/NDI analysis/CDC SVI/NewYork_COUNTY.csv") %>% 
+    mutate(FIPS = as.character(FIPS)) %>% 
+    filter(STATE == "NEW YORK") %>% 
+    filter(COUNTY %in% c("New York", "Bronx", "Kings", "Queens", "Richmond"))
+```
+
+
+```{r, include=FALSE}
+SDI = scale(SDI_df$RPL_THEMES)
+
+summary(SDI)
+
+SDI_df =
+  data.frame(GEOID = SDI_df[,1], SDI)
+
+SDI_scaled = SDI_df %>% 
+  dplyr::mutate(SDI_s = dplyr::ntile(SDI, 4))
+
+summary(SDI_df)
+
+NDI_c = join(NDI_2086, SDI_df, by = "GEOID") %>% 
+  pull(NDI_score) %>% as.numeric()
+
+SDI_c = join(NDI_2086, SDI_df, by = "GEOID") %>% 
+  pull(SDI) %>% as.numeric()
+
+cor.test(NDI_c, SDI_c, alternative = "two.sided", method = "spearman", conf.level = 0.95)
+```
+
+## NDI SVI Correlation
+```{r}
+summary(SDI_df)
+
+cor.test(NDI_c, SDI_c, alternative = "two.sided", method = "spearman", conf.level = 0.95)
+```
+
+```{r}
+map_sdi = nyc_boundaries(geography = "tract") %>% 
+  left_join(SDI_df, by = c("geoid" = "GEOID")) %>% 
+  ggplot() +
+  geom_sf(aes(fill = SDI),color = NA) +
+  theme_minimal() + 
+  theme(axis.text = element_blank(),legend.position = "bottom") +
+  scico::scale_fill_scico(palette = "bilbao") +
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  scale_fill_gradient(low = "White", high = "firebrick4")+
+  labs(fill = "SDI",
+       title = "Social Vulnerability Index",
+       subtitle = "unscaled",
+       caption = "Source: 2018 CDC/ATSDR SVI Data")
+```
+
+```{r}
+map_scaled_sdi = nyc_boundaries(geography = "tract") %>% 
+  left_join(SDI_scaled, by = c("geoid" = "GEOID")) %>% 
+  ggplot() +
+  geom_sf(aes(fill = SDI_s),color = NA, ) +
+  theme_minimal() + 
+  theme(axis.text = element_blank(),legend.position = "bottom") +
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  scico::scale_fill_scico(palette = "bilbao") +
+  scale_fill_gradient(low = "OldLace", high = "firebrick4")+
+  labs(fill = "SDI",
+       title = "Social Vulnerability Index",
+       subtitle = "scaled",
+       caption = "Source: 2018 CDC/ATSDR SVI Data")
+```
+
+
+## NDI vs SVI Maps
+```{r}
+map_ndi_with_score + map_sdi
+```
+
+
+```{r}
+(map_ndi_with_score + map_sdi)/(map_ndi_with_scaled_score + map_scaled_sdi)
+```
+
+## Missingness investigation
+Create a function for finding entries that are unique to one dataset
+```{r, include=FALSE}
+'%!in%' <- function(x,y)!('%in%'(x,y))
+```
+
+51 below 20 pop, 21 have missing vars --> 72 census tract in total are excluded.
+```{r, include=FALSE}
+dropped_tracts = nyc_data$GEOID[which(nyc_data$GEOID %!in% nyc_acs_data$GEOID)]
+
+below_20 = nyc_data$GEOID[which(nyc_data$GEOID %!in% ID_20)]
+
+missing_tracts = dropped_tracts[which(dropped_tracts %!in% below_20)]
+```
+
+dropped tracts:
+```{r}
+map_ndi_with_score = nyc_boundaries(geography = "tract") %>% 
+  left_join(NDI_2086, by = c("geoid" = "GEOID")) %>% 
+  ggplot() +
+  geom_sf(aes(fill = NDI_score),color = NA) +
+  theme_minimal() + 
+  theme(axis.text = element_blank(),legend.position = "bottom") +
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  scale_fill_gradient(low = "OldLace", high = "firebrick4")+
+  labs(fill = "NDI",
+       title = "Neighborhood Deprivation Index",
+       subtitle = "unscaled",
+       caption = "Source: 2015-2019 5-year ACS estimates")
+```
+
+
+```{r}
+map_ndi_with_scaled_score = nyc_boundaries(geography = "tract") %>% 
+  left_join(NDI_with_scaled_score, by = c("geoid" = "GEOID")) %>% 
+  ggplot() +
+  geom_sf(aes(fill = NDI_scaled),color = NA) +
+  theme_minimal() + 
+  theme(axis.text = element_blank(),legend.position = "bottom") +
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  scale_fill_gradient(low = "OldLace", high = "firebrick4")+
+  labs(fill = "NDI",
+       title = "Neighborhood Deprivation Index",
+       subtitle = "scaled",
+       caption = "Source: 2015-2019 5-year ACS estimates")
+```
+
+```{r}
+as_tibble(NDI_2086)
+NDI_2086$GEOID = as.character(NDI_2086$GEOID)
+exclusion_table$GEOID = as.character(exclusion_table$GEOID)
+as_tibble(exclusion_table)
+
+mapping_df = 
+  left_join(exclusion_table,NDI_2086, by = "GEOID") %>% 
+  as_tibble() %>% 
+  mutate(flags = case_when(
+    flag_exclude_FINAL_reason == "Population <= 20" ~ 1,
+    flag_exclude_FINAL_reason == "Population > 20, but feature missing for NDI or ToxPi Index" ~ 2
+  )) %>% 
+  select(GEOID, NDI_score,flags,flag_exclude_FINAL, flag_exclude_FINAL_reason)
+
+view(mapping_df)
+
+mapping_sf_1 = nyc_boundaries(geography = "tract") %>% left_join(mapping_df, by = c("geoid" = "GEOID"))
+
+mapping_sf_2 = nyc_boundaries(geography = "tract") %>% left_join(mapping_df, by = c("geoid" = "GEOID"))
+```
+
+## Result analysis:
+```{r, include=FALSE}
+c_city_wide = pca_ndi_rotated$loadings[,1]
+
+#pca_ndi_income$loadings[,1]
+```
+
+
+#### Bronx
+```{r, include=FALSE}
+Bronx=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36005" )) %>% 
+  select(pct_BAmore,pct_unempl,pct_mgmt,pct_poverty,pct_under35K,pct_pubassist,pct_nonWhite)
+```
+
+```{r, include=FALSE}
+pca_Bronx_rotated <- psych::principal(Bronx, rotate="none", nfactors=1, scores=TRUE)
+c_bronx = pca_Bronx_rotated$loadings[,1]
+print(c_bronx)
+```
+
+
+#### Kings
+```{r, include=FALSE}
+Kings=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36047" )) %>% 
+  select(pct_BAmore,pct_unempl,pct_mgmt,pct_poverty,pct_under35K,pct_pubassist,pct_nonWhite)
+```
+
+```{r, include=FALSE}
+pca_kings_rotated <- psych::principal(Kings, rotate="none", nfactors=1, scores=TRUE)
+c_kings = pca_kings_rotated$loadings[,1]
+print(c_kings)
+```
+
+
+#### NY
+```{r, include=FALSE}
+NY=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36061" )) %>% 
+  select(pct_BAmore,pct_unempl,pct_mgmt,pct_poverty,pct_under35K,pct_pubassist,pct_nonWhite)
+```
+
+```{r, include=FALSE}
+pca_ny_rotated <- psych::principal(NY, rotate="none", nfactors=1, scores=TRUE)
+c_ny = pca_ny_rotated$loadings[,1]
+print(c_ny)
+```
+
+#### Queens
+```{r, include=FALSE}
+Queens=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36081" )) %>% 
+  select(pct_BAmore,pct_unempl,pct_mgmt,pct_poverty,pct_under35K,pct_pubassist,pct_nonWhite)
+```
+
+```{r, include=FALSE}
+pca_queens_rotated <- psych::principal(Queens, rotate="none", nfactors=1, scores=TRUE)
+c_queens = pca_queens_rotated$loadings[,1]
+print(c_queens)
+```
+
+#### Richmond
+```{r, include=FALSE}
+Richmond=
+  nyc_acs_data %>%
+  filter(str_detect(GEOID, "^36085" )) %>% 
+  select(pct_BAmore,pct_unempl,pct_mgmt,pct_poverty,pct_under35K,pct_pubassist,pct_nonWhite)
+#values_Richmond[values_Richmond == 0] <- NA
+```
+
+```{r, include=FALSE}
+pca_richmond_rotated <- psych::principal(Richmond, rotate="none", nfactors=1, scores=TRUE)
+c_richmond = pca_richmond_rotated$loadings[,1]
+print(c_richmond)
+```
+
+```{r, include=FALSE}
+r_prop_var = c(67.4,55.8,79.1,48.9,64.2,61.4)
+```
+
+## Loading comparison
+```{r, include=FALSE}
+library(knitr)
+```
+
+```{r, include=FALSE}
+df = data.frame(c_bronx,c_kings,c_ny,c_queens,c_richmond, c_city_wide) %>% rbind(r_prop_var)
+new_df = as.data.frame(lapply(df,round, 3))
+```
+
+```{r}
+df1 = round(max(df[1,]) - min(df[1,]), digits = 3)
+df2 = round(max(df[2,]) - min(df[2,]), digits = 3)
+df3 = round(max(df[3,]) - min(df[3,]), digits = 3)
+df4 = round(max(df[4,]) - min(df[4,]), digits = 3)
+df5 = round(max(df[5,]) - min(df[5,]), digits = 3)
+df6 = round(max(df[6,]) - min(df[6,]), digits = 3)
+df7 = round(max(df[7,]) - min(df[7,]), digits = 3)
+
+
+difference = c(df1,df2,df3,df4,df5,df6,df7," ")
+
+loading_comparison = new_df %>% cbind(difference)
+row.names(loading_comparison) = c("% B.S./B.A. or higher","% Unempolyment", "% Management Occupation",
+                                  "% Households in Poverty","% Households with annual income < $35,000", 
+                                  "% Households receving public assistance",
+                                  "% Non-Hispanic non-White", "% Variance Explained")
+colnames(loading_comparison) = c("Bronx","Kings","New York", "Queens", "Richmond","City-wide Index","Loading Difference")
+
+loading_comparison %>% kable(caption = "Table 2. Comparison of Borough-specific and City-wide first principal component deprivation score loadings")
+
+```
+
+## Barplot
+```{r}
+City_score = NDI_2086 %>% 
+  select(NDI_score) %>% 
+  mutate(County = "City-wide")
+
+Stratified = NDI_2086 %>% 
+  select(NDI_score, County)
+
+
+NDI_box = rbind(City_score,Stratified)
+
+NDI_box$County <- factor(NDI_box$County, levels=c("City-wide","New York", "Richmond","Kings", "Queens","Bronx"))
+
+
+
+ggplot(NDI_box, aes(x = County, y = NDI_score))+
+  geom_boxplot(fill = "OldLace") +
+    stat_summary(
+    aes(label=sprintf("%1.1f", ..y..), color = "red"),
+    geom="text", 
+    fun = quantile,
+    #fun = function(y) boxplot.stats(y)$stats,
+    position=position_nudge(x=0.2), 
+    size=3.0, show.legend=FALSE)+
+    stat_summary(fun=mean, colour="darkred", geom="point", 
+               shape=16, size=2, show.legend=FALSE)+
+  coord_flip() +
+  theme_minimal()+
+  theme(plot.background = element_rect(fill = "lightcyan")) +
+  labs(title = "Neighborhood Deprivation Score Distribution")
+```
