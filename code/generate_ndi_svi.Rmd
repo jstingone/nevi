@@ -10,6 +10,10 @@ editor_options:
 ## Aim
 In this RMD, we have documented the process of constructing an Neighborhood Deprivation Index (NDI) following a developed method. We have also imported the Social Vulnerability Index (SVI) data from the CDC and tested the correlation between NDI and the SVI for census tracts in the New York City.
 
+```{r, setup}
+knitr::opts_knit$set(root.dir = '..') 
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 options(tigris_class = "sf")
@@ -713,7 +717,7 @@ map_ndi_with_score + map_ndi_with_scaled_score
 ##SVI
 
 ```{r}
-SDI_df = read_csv("~/Documents/NDI/NDI analysis/CDC SVI/NewYork.csv") %>% 
+SDI_df = read_csv("~/Documents/NDI/NDI analysis/CDC SVI/svi.csv") %>% 
   mutate(FIPS = as.character(FIPS)) %>% 
   filter(FIPS %in% NDI_2086$GEOID) %>% 
   select(FIPS, LOCATION, COUNTY, RPL_THEMES) %>% 

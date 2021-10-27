@@ -1,42 +1,54 @@
 ---
-title: "NYC Neighborhood Vulnerability Index"
-author: "Stephen Uong"
-date: "3/3/2021"
-output: html_document
+title: "Developing a Neighborhood Vulnerability Index in New York City, 2019"
+author: "Stephen P. Uong, Jiayi Zhou, Jeanette A. Stingone"
+date: "10/28/2021"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
 ---
 
-In 2021, the Stingone lab at Colubmia University in the City of New York developed a Neighborhood Vulnerability Index (NVI) to measure vulnerability to environmental pollution. We applied the Toxicological Prioritization Index (ToxPi) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
+We developed a Neighborhood Vulnerability Index (NVI) to measure vulnerability to environmental pollution. We applied the Toxicological Prioritization Index (ToxPi) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
 
 In this document, we have summarized our process that we followed to generate the NVI. 
 
-## Load Libraries
-First, load libraries for importing data, downloading the Census data, and creating clusters.
+### 1. Setup
+We set the working directory to one folder up from the RMarkdown file.
+```{r, setup}
+knitr::opts_knit$set(root.dir = '..') 
+```
 
-```{r libs, include=FALSE}
+### 2. Loading the Libraries
+First, we loaded libraries to import our previously downloaded data and downloading the Census data.
+```{r, libraries}
 library(tidyverse)
 library(rio)
 library(cluster)
 library(nycgeo)
-# Download Census data
 library(tidycensus)
-census_api_key("855da703f5099abb753fe0b3f3fd144f8afe73dc") # Please update with your own key.
-options(tigris_use_cache = TRUE)
 ```
 
-## Import Data
-Download the 2020 Centers for Disease Control and Disease Prevention (CDC) PLACES data at the Census tract level at the following link: https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh  
-The file is also available in the repository. 
+### 3. Importing the Already Downloaded Data
+We imported the: 
 
-```{r}
-# 500 Cities Project
-PLACES_orig <- rio::import('data/raw/PLACES__Census_Tract_Data__GIS_Friendly_Format___2020_release.csv')
+- 2020 Centers for Disease Control and Disease Prevention (CDC) PLACES data at the Census tract level that we previously downloaded at the following [link](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh). 
+- 2015-2019 5-Year Estimates from the U.S. Census American Community Survey (ACS)
+- List of Census Tracts to be excluded because of 1) a population of less than 20 or 2) at least 1 missing feature for the NVI or Neighorhood Deprivation Index (NDI), one of the indices to which the NVI was compared. 
+- Header needed to import the spreadsheet into the ToxPi Graphical User interface used to generate the NVI
+- NYC county of the Census tract
+
+```{r, import_data}
+# CDC PLACES data, 2020 release
+PLACES_orig <- rio::import('data/raw/PLACES_2020_release.csv')
+# U.S. Census, American Community Survey Data 5-Year Estimates, 2015-2019
+census_orig <- readRDS( file = "data/raw/us_census_acs_2019.rds")
 # Exclusions List
 tract_exclusions_list <- import("data/processed/EXCLUSION_LIST_20210628.csv")
 tract_exclusions_list_id <- tract_exclusions_list %>% 
   dplyr::filter(flag_exclude_FINAL == 0) %>% 
   dplyr::transmute(SID = as.character(GEOID))
 # Headers for Toxpi GUI
-header_toxpi <- read.csv("data/processed/toxpi headers/toxpi_header.csv", header = F, colClasses = rep("character",62))
+header_toxpi <- read.csv("data/processed/toxpi/toxpi_header.csv", header = F, colClasses = rep("character",62))
 # NYC Counties
 tract_nyc_county <- nycgeo::nyc_boundaries(geography = "tract") %>% 
   dplyr::as_tibble() %>% 
@@ -45,8 +57,12 @@ tract_nyc_county <- nycgeo::nyc_boundaries(geography = "tract") %>%
                    county = county_name)
 ```
 
-## Download Census Data
-```{r import_census, include=FALSE}
+#### 3.1. (Skipped) Downloading the Census Data
+We used the following code to download data from the Census. The markdown file currently skips this code segment since we have imported the previously downloaded data above.
+```{r, import_census, eval = FALSE}
+# Please update with your own key if you would like to run this code.
+census_api_key('YOUR_CENSUS_API_KEY') 
+options(tigris_use_cache = TRUE)
 # Specify county names for Census data download
 county_names <- c('New York County', 'Kings County', 'Bronx County', 'Richmond County', 'Queens County')
 # Specify variables desired from the Census
@@ -114,9 +130,9 @@ census_orig <- census_orig %>%
   left_join(census_orig_subject_table, by = "GEOID")
 ```
 
-## CLEAN DATA
-
-### Clean CDC PLACES Data
+### 4. Cleaning the data
+#### 4.1. Cleaning the CDC PLACES Data
+We first cleaned the CDC PLACES data, transforming variables so that larger values of features would correspond to greater vulnerability.
 ```{r}
 gen_cdc_features <- function(indf, var_id){
   indf %>% 
@@ -139,13 +155,11 @@ gen_cdc_features <- function(indf, var_id){
 }
 PLACES_clean <- gen_cdc_features(indf = PLACES_orig, var_id = "TractFIPS") %>% 
   dplyr::rename(tract = id) 
-
 ```
 
-### Clean U.S. Census Data
+#### 4.2. Cleaning the U.S. Census ACS Data
+We cleaned the U.S. Census ACS data, calculating proportions, transforming features so that larger values of features would correspond to greater vulnerability. Some of the features here were included in sensitivity analyses or are were previously considered by no longer included in the toxpi index. 
 ```{r}
-### CLEAN: Census + Merge with rest
-  # NOTE: Housing (B25035_001E/age_structure_2019): See value of 18 for Tract = 36081001900 (pop = 4358). Plugging in missing for those values now
 gen_census_features <- function(indf, var_area){
   outdf <- indf %>% 
     dplyr::as_tibble() %>% 
@@ -158,7 +172,7 @@ gen_census_features <- function(indf, var_area){
                      female_led_hh_prop = (B11005_007E + B11005_010E)/B11005_001E,
                      # race/ethnicity
                      white_prop = B02001_002E/B02001_001E,
-                     misc_nonwhite_prop = (B03002_001E - B03002_003E)/B03002_001E, ### to double check- maybe grab other variables, just subtracting NLW pop from whole pop here
+                     misc_nonwhite_prop = (B03002_001E - B03002_003E)/B03002_001E,
                      black_prop = B02001_003E/B02001_001E,
                      asian_prop = B02001_005E/B02001_001E,
                      aian_prop = B02001_004E/B02001_001E,
@@ -205,7 +219,7 @@ gen_census_features <- function(indf, var_area){
                      travel_time_work_minute = B08013_001E,
                      # living alone
                      prop_living_alone = B11001_008E/B11001_001E,
-                     ### Economics
+                     ### Economic Indicators
                      # Income
                      income1yr_neg_median = -B19013_001E - min(-B19013_001E, na.rm = TRUE), # MADE NEGATIVE B/C REVERSE DIRECTION
                      # Poverty
@@ -256,8 +270,9 @@ census_clean <- census_orig %>%
 
 ```
 
-### Merge Data from CDC 500 Cities project and U.S. Census and apply Exclusions
-```{r}
+#### 4.3. Merging the Data and Applying Exclusions
+We merged the data from the CDC 500 Cities project and the U.S. Census before appylying our exclusions, census tracts that had 1) a population of less than 20 and 2) at least 1 missing feature for the NVI or Neighorhood Deprivation Index (NDI), one of the indices to which the NVI was compared. 
+```{r, include = FALSE}
 # Variable remove list
 vars_remove <- c('B25035_001E_update', 
                  'white_prop', 'aian_prop', 'nhpi_prop', 'race_other_prop', 'race_mult_prop', 'black_prop', 'asian_prop', 'aian_nhpi_mult_other_prop','misc_nonwhite_prop',
@@ -272,8 +287,9 @@ tract_exclusions <- census_clean %>%
   dplyr::select(.dots = -c(vars_remove))
 ```
 
-## Combine Data with ToxPi header to use in the ToxPi GUI
-```{r toxpi_header}
+#### 4.4. Adding a header to the dataset to use in the ToxPi Graphical User Interface (GUI)
+We added a header needed to import the spreadsheet into the ToxPi GUI. The header contains information about the slices, slice weights, name of the slices, and color of the slices.
+```{r, add_toxpi_header}
 bind_toxpi_header <- function(df_header, df_features){
   colnames_features <- names(df_features)
   df_colnames_features <- data.frame(matrix(ncol = length(colnames_features), colnames_features))
@@ -284,24 +300,54 @@ bind_toxpi_header <- function(df_header, df_features){
 toxpi_export <- bind_toxpi_header(header_toxpi, tract_exclusions)
 ```
 
-## EXPORT: Data
-```{r export_features, include=FALSE}
+### 5. Exporting the Features Used in the NVI
+We exported our data into a spreadsheet with the NVI features and the header needed to import the spreadsheet into the ToxPi GUI.
+```{r, export_features}
 export(toxpi_export, "data/processed/nvi_features.csv", col.names = FALSE)
 ```
 
 
-## Using the ToxPi GUI
-1. Download ToxPi Graphical User Interface (GUI) at this link. We used version 2.3 in our original version of the NVI (August 2019 update): https://toxpi.org/
-2. Follow the steps in the NVI ToxPi GUI tutorial (nvi_toxpi_gui_tutorial.docx) to generate the NVI before running the rest of the R code.
+### 6. Generating the NVI using the ToxPi GUI
+To generate the NVI in the ToxPi GUI, we followed the following steps:
+1. Downloaded ToxPi Graphical User Interface (GUI) at this link. We used version 2.3 in our original version of the NVI (August 2019 update): https://toxpi.org/
+2. Followed the steps in the NVI ToxPi GUI tutorial (nvi_toxpi_gui_tutorial.docx) to generate the NVI before running the rest of the R code.
 
 
-## IMPORT: Data from ToxPi GUI
-```{r}
-tract_toxpi_pre <- import('data/processed/toxpi exports/nvi_toxpi_results.csv')
+### 8: Importing the Index Generated from the ToxPi GUI
+After generating the index in the ToxPi GUI, we imported the CSV file containing the index that was previously exported from the software.
+```{r, import_index}
+tract_toxpi_pre <- import('data/processed/toxpi/nvi_toxpi_results.csv')
 ```
 
-## CLEAN: Clean data from ToxPi GUI
-```{r}
+### 7. Creating the NVI Clusters 
+We created clusters from the slices/subdomains for the NVI.
+```{r, create_nvi_clusters}
+# CREATE: Clusters, Code from developers of toxpi
+set.seed(123)
+  # Get slice weights
+w <- sapply(sapply(names(tract_toxpi_pre)[-c(1:5)],function(x) strsplit(x, "!")),"[",2)
+w <- sapply(strsplit(w,split="/"),function(x) {y <- ifelse(length(x)==2,x[2],1);as.numeric(x[1])/as.numeric(y)})
+  # Generate cluster
+hc <- hclust(dist(tract_toxpi_pre[,-c(1:5)]*rep(w,each=nrow(tract_toxpi_pre))), method="complete")
+nvi_cluster_result <- cutree(hc, k = 6) # Cut into 6 clusters using HClusts 
+  # Create data frame for cluster data
+tract_nvi_cluster <- tract_toxpi_pre %>% 
+  dplyr::mutate(SID = Source %>% as.character() %>% trimws(),
+                nvi_cluster_orig = nvi_cluster_result %>% as.factor(),
+                nvi_cluster = case_when(
+                  nvi_cluster_orig == "1" ~ "4",
+                  nvi_cluster_orig == "2" ~ "6",
+                  nvi_cluster_orig == "3" ~ "5",
+                  nvi_cluster_orig == "4" ~ "1",
+                  nvi_cluster_orig == "5" ~ "3",
+                  nvi_cluster_orig == "6" ~ "2"
+                ) %>% as.factor()) %>% 
+  dplyr::select(SID, nvi_cluster)
+```
+
+### 8. Cleaning the data from ToxPi GUI
+We renamed the subdomain slices and manually calculated domain-specific scores for the NVI.
+```{r, clean_index, include = FALSE}
 # CREATE: Function to clean the data
 clean_toxpi <- function(datain){
   dataout <- datain %>% 
@@ -350,34 +396,12 @@ tract_toxpi <- clean_toxpi(tract_toxpi_pre)
 ```
 
 
-## MERGE: Data from ToxPi GUI
-```{r}
-# CREATE: Clusters, Code from developers of toxpi
-set.seed(123)
-  # Get slice weights
-w <- sapply(sapply(names(tract_toxpi_pre)[-c(1:5)],function(x) strsplit(x, "!")),"[",2)
-w <- sapply(strsplit(w,split="/"),function(x) {y <- ifelse(length(x)==2,x[2],1);as.numeric(x[1])/as.numeric(y)})
-  # Generate cluster
-hc <- hclust(dist(tract_toxpi_pre[,-c(1:5)]*rep(w,each=nrow(tract_toxpi_pre))), method="complete")
-nvi_cluster_result <- cutree(hc, k = 6) # Cut into 6 clusters using HClusts 
-  # Create data frame for cluster data
-tract_nvi_cluster <- tract_toxpi_pre %>% 
-  dplyr::mutate(SID = Source %>% as.character() %>% trimws(),
-                nvi_cluster_orig = nvi_cluster_result %>% as.factor(),
-                nvi_cluster = case_when(
-                  nvi_cluster_orig == "1" ~ "4",
-                  nvi_cluster_orig == "2" ~ "6",
-                  nvi_cluster_orig == "3" ~ "5",
-                  nvi_cluster_orig == "4" ~ "1",
-                  nvi_cluster_orig == "5" ~ "3",
-                  nvi_cluster_orig == "6" ~ "2"
-                ) %>% as.factor()) %>% 
-  dplyr::select(SID, nvi_cluster)
-
-# MERGE AND CLEAN DATA: NVI features + NVI (from ToxPi GUI) + Clusters
-tract_final <- tract_exclusions %>% 
-  dplyr::left_join(tract_toxpi, by = "SID") %>% 
-  dplyr::left_join(tract_nvi_cluster, by = "SID") %>% 
+### 9. Merging the NVI with the NVI features and clusters
+We merged the following data: NVI, NVI features, and NVI clusters.
+```{r, merge_index}
+tract_final <- tract_exclusions %>% # NVI features
+  dplyr::left_join(tract_toxpi, by = "SID") %>%  # NVI (from the ToxPi GUI)
+  dplyr::left_join(tract_nvi_cluster, by = "SID") %>%  # NVI clusters
   dplyr::rename(Tract_FIPS = SID) %>% 
   dplyr::left_join(tract_nyc_county, by = "Tract_FIPS") %>% 
   dplyr::relocate(county, nvi, nvi_cluster, score_demo, score_economic, score_residential, score_healthstatus, .after = Tract_FIPS) %>% 
@@ -385,8 +409,9 @@ tract_final <- tract_exclusions %>%
 ```
 
 
-# EXPORT: Toxpi combined data
-```{r}
+### 10. Exporting the final data with the NVI, features, and clusters
+After completing all importing and data cleaning steps, we exported our final dataset, which included the NVI, NVI features, and NVI clusters.
+```{r, export_final_data}
 export(tract_final, paste0("data/processed/nvi_final.csv"))
 ```
 
