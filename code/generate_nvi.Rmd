@@ -1,6 +1,8 @@
 ---
 title: "Developing a Neighborhood Vulnerability Index in New York City, 2019"
-author: "Stephen P. Uong, Jiayi Zhou, Jeanette A. Stingone"
+author: 
+- "Stephen P. Uong" 
+- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
 date: "10/28/2021"
 output: 
   html_document: 
@@ -38,6 +40,7 @@ We imported the:
 - NYC county of the Census tract
 
 ```{r, import_data}
+setwd('C:/Users/steph/OneDrive - cumc.columbia.edu/Phi/My Courses/Columbia/Work/Research - Jeanette/projects/covid-vulnerability-index/comms/git nvi')
 # CDC PLACES data, 2020 release
 PLACES_orig <- rio::import('data/raw/PLACES_2020_release.csv')
 # U.S. Census, American Community Survey Data 5-Year Estimates, 2015-2019
@@ -48,7 +51,10 @@ tract_exclusions_list_id <- tract_exclusions_list %>%
   dplyr::filter(flag_exclude_FINAL == 0) %>% 
   dplyr::transmute(SID = as.character(GEOID))
 # Headers for Toxpi GUI
-header_toxpi <- read.csv("data/processed/toxpi/toxpi_header.csv", header = F, colClasses = rep("character",62))
+header_toxpi <- read.csv("data/processed/toxpi/toxpi_header.csv", header = F, colClasses = rep("character",58))
+  # For sensitivity analysis of race/ethnicity
+header_toxpi_raceeth_hispsub <- read.csv("data/processed/toxpi/toxpi_header_raceeth_hispsub.csv", header = F, colClasses = rep("character",62))
+header_toxpi_raceeth <- read.csv("data/processed/toxpi/toxpi_header_raceeth.csv", header = F, colClasses = rep("character",62))
 # NYC Counties
 tract_nyc_county <- nycgeo::nyc_boundaries(geography = "tract") %>% 
   dplyr::as_tibble() %>% 
@@ -276,6 +282,7 @@ We merged the data from the CDC 500 Cities project and the U.S. Census before ap
 # Variable remove list
 vars_remove <- c('B25035_001E_update', 
                  'white_prop', 'aian_prop', 'nhpi_prop', 'race_other_prop', 'race_mult_prop', 'black_prop', 'asian_prop', 'aian_nhpi_mult_other_prop','misc_nonwhite_prop',
+                 'black_nonhisp_prop','asian_nonhisp_prop','aian_nhpi_mult_other_nonhisp_prop','hisp_prop', # remove all race/ethnicity variables 20211214
                  'white_nonhisp_prop','aian_nonhisp_prop', 'nhpi_nonhisp_prop', 'race_other_nonhisp_prop', 'race_mult_nonhisp_prop',
                  'ice_neg_nonwhite', 'ice_neg_black', 'ice_neg_aian', 'ice_neg_asian', 'ice_neg_nhpi', 'ice_neg_race_other', 'ice_neg_race_mult', 'ice_neg_hisp',
                  'misc_income1yr_median', 'misc_sqmi', 'misc_pop')  
@@ -285,6 +292,27 @@ tract_exclusions <- census_clean %>%
   dplyr::rename(SID = tract) %>% 
   dplyr::inner_join(tract_exclusions_list_id, by = "SID") %>% 
   dplyr::select(.dots = -c(vars_remove))
+### SENSITIVITY ANALYSIS of race/ethnicity
+  # CREATE: df with other race variables 
+vars_remove_sa <- c('B25035_001E_update', 
+                    # 'white_prop', 'aian_prop', 'nhpi_prop', 'race_other_prop', 'race_mult_prop', 'black_prop', 'asian_prop', 'aian_nhpi_mult_other_prop',
+                    'misc_nonwhite_prop',
+                    # 'white_nonhisp_prop','aian_nonhisp_prop', 'nhpi_nonhisp_prop', 'race_other_nonhisp_prop', 'race_mult_nonhisp_prop',
+                    'ice_neg_nonwhite', 'ice_neg_black', 'ice_neg_aian', 'ice_neg_asian', 'ice_neg_nhpi', 'ice_neg_race_other', 'ice_neg_race_mult', 'ice_neg_hisp',
+                    'misc_income1yr_median', 'misc_sqmi', 'misc_pop')  
+tract_exclusions_sa <- census_clean %>% 
+  dplyr::left_join(PLACES_clean, by = "tract") %>% 
+  dplyr::rename(SID = tract) %>% 
+  dplyr::inner_join(tract_exclusions_list_id, by = "SID") %>% 
+  dplyr::select(.dots = -c(vars_remove_sa))
+tract_exclusions_sa_raceeth_olap <- tract_exclusions_sa %>% 
+  dplyr::select(-c(white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
+                   black_nonhisp_prop, asian_nonhisp_prop, aian_nhpi_mult_other_nonhisp_prop,
+                   white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
+tract_exclusions_sa_raceeth_no_olap <- tract_exclusions_sa %>% 
+  dplyr::select(-c(white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
+                   black_prop, asian_prop, aian_nhpi_mult_other_prop,
+                   white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
 ```
 
 #### 4.4. Adding a header to the dataset to use in the ToxPi Graphical User Interface (GUI)
@@ -298,12 +326,22 @@ bind_toxpi_header <- function(df_header, df_features){
         df_features) # features
 }
 toxpi_export <- bind_toxpi_header(header_toxpi, tract_exclusions)
+
+# For sensitivity analyses of race/ethnicity
+toxpi_export_raceeth_olap <- bind_toxpi_header(header_toxpi_raceeth, tract_exclusions_sa_raceeth_olap)
+toxpi_export_raceeth_no_olap <- bind_toxpi_header(header_toxpi_raceeth, tract_exclusions_sa_raceeth_no_olap)
+toxpi_export_raceeth_hispsub <- bind_toxpi_header(header_toxpi_raceeth_hispsub, tract_exclusions_sa_raceeth_no_olap)
 ```
 
 ### 5. Exporting the Features Used in the NVI
 We exported our data into a spreadsheet with the NVI features and the header needed to import the spreadsheet into the ToxPi GUI.
 ```{r, export_features}
-export(toxpi_export, "data/processed/nvi_features.csv", col.names = FALSE)
+export(tract_exclusions, "data/processed/nvi_features.csv", col.names = TRUE)
+export(toxpi_export, "data/processed/nvi_features_toxpi.csv", col.names = FALSE)
+  # For sensitivity analyses of race/ethnicity
+export(toxpi_export_raceeth_olap, "data/processed/nvi_features_toxpi_sa_raceeth_olap.csv", col.names = FALSE)
+export(toxpi_export_raceeth_no_olap, "data/processed/nvi_features_toxpi_sa_raceeth_no_olap.csv", col.names = FALSE)
+export(toxpi_export_raceeth_hispsub, "data/processed/nvi_features_toxpi_sa_raceeth_hispsub.csv", col.names = FALSE)
 ```
 
 
@@ -313,13 +351,13 @@ To generate the NVI in the ToxPi GUI, we followed the following steps:
 2. Followed the steps in the NVI ToxPi GUI tutorial (nvi_toxpi_gui_tutorial.docx) to generate the NVI before running the rest of the R code.
 
 
-### 8: Importing the Index Generated from the ToxPi GUI
+### 7: Importing the Index Generated from the ToxPi GUI
 After generating the index in the ToxPi GUI, we imported the CSV file containing the index that was previously exported from the software.
 ```{r, import_index}
 tract_toxpi_pre <- import('data/processed/toxpi/nvi_toxpi_results.csv')
 ```
 
-### 7. Creating the NVI Clusters 
+### 8. Creating the NVI Clusters 
 We created clusters from the slices/subdomains for the NVI.
 ```{r, create_nvi_clusters}
 # CREATE: Clusters, Code from developers of toxpi
@@ -335,19 +373,31 @@ tract_nvi_cluster <- tract_toxpi_pre %>%
   dplyr::mutate(SID = Source %>% as.character() %>% trimws(),
                 nvi_cluster_orig = nvi_cluster_result %>% as.factor(),
                 nvi_cluster = case_when(
-                  nvi_cluster_orig == "1" ~ "4",
-                  nvi_cluster_orig == "2" ~ "6",
-                  nvi_cluster_orig == "3" ~ "5",
-                  nvi_cluster_orig == "4" ~ "1",
-                  nvi_cluster_orig == "5" ~ "3",
-                  nvi_cluster_orig == "6" ~ "2"
+                  nvi_cluster_orig == "1" ~ "6",
+                  nvi_cluster_orig == "2" ~ "5",
+                  nvi_cluster_orig == "3" ~ "4",
+                  nvi_cluster_orig == "4" ~ "3",
+                  nvi_cluster_orig == "5" ~ "2",
+                  nvi_cluster_orig == "6" ~ "1"
                 ) %>% as.factor()) %>% 
   dplyr::select(SID, nvi_cluster)
 ```
 
+
+### 8.1. Checking the clusters
+Below is code we used to check the clusters to help determine how many clusters we should use.
+```{r, check_clusters}
+scaled_tract_toxpi_pre = scale(tract_toxpi_pre[-c(1:5)])
+mydist<-function(x)dist(x, method="euclidian")
+mycluster <- function(x,k) list(cluster=cutree(hclust(mydist(x), method = "complete"),k=k))
+gap_stat_10 <- clusGap(scaled_tract_toxpi_pre, FUN = mycluster, K.max = 10, B = 50)
+fviz_gap_stat(gap_stat_10) # choose 6 clusters based on this plot and what we observed when characterizing the clusters.```
+```
+
+
 ### 8. Cleaning the data from ToxPi GUI
 We renamed the subdomain slices and manually calculated domain-specific scores for the NVI.
-```{r, clean_index, include = FALSE}
+```{r, clean_index, eval = FALSE}
 # CREATE: Function to clean the data
 clean_toxpi <- function(datain){
   dataout <- datain %>% 
@@ -357,7 +407,6 @@ clean_toxpi <- function(datain){
     # Demographics Domain
     dplyr::rename_at(vars(starts_with('DemographicsAge')), funs(paste0('score_demo_age'))) %>% 
     dplyr::rename_at(vars(starts_with('DemographicsFemaleLed')), funs(paste0('score_demo_femaleled'))) %>% 
-    dplyr::rename_at(vars(starts_with('DemographicsRaceEth')), funs(paste0('score_demo_raceeth'))) %>% 
     dplyr::rename_at(vars(starts_with('DemographicsImmigration')), funs(paste0('score_demo_immigration'))) %>% 
     dplyr::rename_at(vars(starts_with('DemographicsDisability')), funs(paste0('score_demo_disability'))) %>% 
     dplyr::rename_at(vars(starts_with('DemographicsSingleParent')), funs(paste0('score_demo_singleparent'))) %>% 
@@ -384,7 +433,7 @@ clean_toxpi <- function(datain){
     dplyr::rename_at(vars(starts_with('Health StatusPreventive')), funs(paste0('score_healthstatus_preventive'))) %>% 
     dplyr::rename_at(vars(starts_with('Health StatusLackInsurance')), funs(paste0('score_healthstatus_lackinsurance'))) %>% 
     # Checked: Calculated NVI score is same as one calculated in toxpi (just rounding differences)
-    dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/8,
+    dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/7,
                   score_economic = (score_economic_incomepoverty + score_economic_servicemanual + score_economic_gini + score_economic_employment + score_economic_education + score_economic_vehicleavail)/6,
                   score_residential = (score_residential_popdensity + score_residential_groupquarters + score_residential_occperroom + score_residential_structage + score_residential_structattach + score_residential_move1yr + score_residential_vacancy)/7,
                   score_healthstatus = (score_healthstatus_lifestyle + score_healthstatus_condition + score_healthstatus_preventive + score_healthstatus_lackinsurance)/4)
@@ -413,6 +462,7 @@ tract_final <- tract_exclusions %>% # NVI features
 After completing all importing and data cleaning steps, we exported our final dataset, which included the NVI, NVI features, and NVI clusters.
 ```{r, export_final_data}
 export(tract_final, paste0("data/processed/nvi_final.csv"))
+saveRDS(tract_final, file = "data/processed/nvi_final.rds")
 ```
 
 

@@ -9,8 +9,10 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Stephen P. Uong, Jiayi Zhou, Jeanette A. Stingone" />
+<meta name="author" content="Stephen P. Uong" />
+<meta name="author" content="Contributors: Jiayi Zhou, Jeanette A. Stingone" />
 
+<meta name="date" content="2021-10-28" />
 
 <title>Developing a Neighborhood Vulnerability Index in New York City, 2019</title>
 
@@ -1493,8 +1495,9 @@ div.tocify {
 
 
 <h1 class="title toc-ignore">Developing a Neighborhood Vulnerability Index in New York City, 2019</h1>
-<h4 class="author">Stephen P. Uong, Jiayi Zhou, Jeanette A. Stingone</h4>
-<h4 class="date">3/3/2021</h4>
+<h4 class="author">Stephen P. Uong</h4>
+<h4 class="author">Contributors: Jiayi Zhou, Jeanette A. Stingone</h4>
+<h4 class="date">10/28/2021</h4>
 
 </div>
 
@@ -1782,7 +1785,8 @@ toxpi_export &lt;- bind_toxpi_header(header_toxpi, tract_exclusions)</code></pre
 <div id="exporting-the-features-used-in-the-nvi" class="section level3">
 <h3>5. Exporting the Features Used in the NVI</h3>
 <p>We exported our data into a spreadsheet with the NVI features and the header needed to import the spreadsheet into the ToxPi GUI.</p>
-<pre class="r"><code>export(toxpi_export, &quot;data/processed/nvi_features.csv&quot;, col.names = FALSE)</code></pre>
+<pre class="r"><code>export(tract_exclusions, &quot;data/processed/nvi_features.csv&quot;, col.names = TRUE)
+export(toxpi_export, &quot;data/processed/nvi_features_toxpi_header.csv&quot;, col.names = FALSE)</code></pre>
 </div>
 <div id="generating-the-nvi-using-the-toxpi-gui" class="section level3">
 <h3>6. Generating the NVI using the ToxPi GUI</h3>
@@ -1821,64 +1825,6 @@ tract_nvi_cluster &lt;- tract_toxpi_pre %&gt;%
 <div id="cleaning-the-data-from-toxpi-gui" class="section level3">
 <h3>8. Cleaning the data from ToxPi GUI</h3>
 <p>We renamed the subdomain slices and manually calculated domain-specific scores for the NVI.</p>
-<pre class="r"><code># CREATE: Function to clean the data
-clean_toxpi &lt;- function(datain){
-  dataout &lt;- datain %&gt;% 
-    dplyr::rename(SID = Source, nvi = `ToxPi Score`) %&gt;% 
-    dplyr::mutate(SID = as.character(SID) %&gt;% trimws()) %&gt;% 
-    dplyr::select(-c(`HClust Group`, `KMeans Group`, Name)) %&gt;% 
-    # Demographics Domain
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsAge&#39;)), funs(paste0(&#39;score_demo_age&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsFemaleLed&#39;)), funs(paste0(&#39;score_demo_femaleled&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsRaceEth&#39;)), funs(paste0(&#39;score_demo_raceeth&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsImmigration&#39;)), funs(paste0(&#39;score_demo_immigration&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsDisability&#39;)), funs(paste0(&#39;score_demo_disability&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsSingleParent&#39;)), funs(paste0(&#39;score_demo_singleparent&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsMobility&#39;)), funs(paste0(&#39;score_demo_mobility&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;DemographicsLiveAlone&#39;)), funs(paste0(&#39;score_demo_livealone&#39;))) %&gt;% 
-    # Economic Domain
-    dplyr::rename_at(vars(starts_with(&#39;Economic IndicatorsIncomePoverty&#39;)), funs(paste0(&#39;score_economic_incomepoverty&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Economic IndicatorsServiceManualJobs&#39;)), funs(paste0(&#39;score_economic_servicemanual&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Economic IndicatorsGini&#39;)), funs(paste0(&#39;score_economic_gini&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Economic IndicatorsEmployment&#39;)), funs(paste0(&#39;score_economic_employment&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Economic IndicatorsEducation&#39;)), funs(paste0(&#39;score_economic_education&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Economic IndicatorsVehicleAvail&#39;)), funs(paste0(&#39;score_economic_vehicleavail&#39;))) %&gt;% 
-    # Residential Domain
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityPopDensity&#39;)), funs(paste0(&#39;score_residential_popdensity&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityGroupQuarters&#39;)), funs(paste0(&#39;score_residential_groupquarters&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityOccPerRoom&#39;)), funs(paste0(&#39;score_residential_occperroom&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityStrAge&#39;)), funs(paste0(&#39;score_residential_structage&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityStrAttached&#39;)), funs(paste0(&#39;score_residential_structattach&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityMove1Yr&#39;)), funs(paste0(&#39;score_residential_move1yr&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Residential DensityVacancy&#39;)), funs(paste0(&#39;score_residential_vacancy&#39;))) %&gt;% 
-    # Health status Domain
-    dplyr::rename_at(vars(starts_with(&#39;Health StatusLifestyle&#39;)), funs(paste0(&#39;score_healthstatus_lifestyle&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Health StatusCondition&#39;)), funs(paste0(&#39;score_healthstatus_condition&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Health StatusPreventive&#39;)), funs(paste0(&#39;score_healthstatus_preventive&#39;))) %&gt;% 
-    dplyr::rename_at(vars(starts_with(&#39;Health StatusLackInsurance&#39;)), funs(paste0(&#39;score_healthstatus_lackinsurance&#39;))) %&gt;% 
-    # Checked: Calculated NVI score is same as one calculated in toxpi (just rounding differences)
-    dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/8,
-                  score_economic = (score_economic_incomepoverty + score_economic_servicemanual + score_economic_gini + score_economic_employment + score_economic_education + score_economic_vehicleavail)/6,
-                  score_residential = (score_residential_popdensity + score_residential_groupquarters + score_residential_occperroom + score_residential_structage + score_residential_structattach + score_residential_move1yr + score_residential_vacancy)/7,
-                  score_healthstatus = (score_healthstatus_lifestyle + score_healthstatus_condition + score_healthstatus_preventive + score_healthstatus_lackinsurance)/4)
-  return(dataout)
-}
-
-# CLEAN: Data from ToxPi GUI
-tract_toxpi &lt;- clean_toxpi(tract_toxpi_pre)</code></pre>
-<pre><code>## Warning: `funs()` was deprecated in dplyr 0.8.0.
-## Please use a list of either functions or lambdas: 
-## 
-##   # Simple named list: 
-##   list(mean = mean, median = median)
-## 
-##   # Auto named with `tibble::lst()`: 
-##   tibble::lst(mean, median)
-## 
-##   # Using lambdas
-##   list(~ mean(., trim = .2), ~ median(., na.rm = TRUE))
-## This warning is displayed once every 8 hours.
-## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was generated.</code></pre>
 </div>
 <div id="merging-the-nvi-with-the-nvi-features-and-clusters" class="section level3">
 <h3>9. Merging the NVI with the NVI features and clusters</h3>
