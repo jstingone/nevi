@@ -463,6 +463,8 @@ After completing all importing and data cleaning steps, we exported our final da
 ```{r, export_final_data}
 export(tract_final, paste0("data/processed/nvi_final.csv"))
 saveRDS(tract_final, file = "data/processed/nvi_final.rds")
+
+View(tract_final)
 ```
 
 

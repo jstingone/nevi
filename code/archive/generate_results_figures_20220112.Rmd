@@ -645,66 +645,23 @@ gen_stab5 <- function(dfin, var){
                      median_iqr = paste0(median_nvi,' (',iqr,')'))
   return(tab_summary)
 }
-
-dplyr::left_join(gen_stab5(tract_final, 'nvi') %>% dplyr::rename(nvi_median_iqr = median_iqr))
-
-
 # Generate summary stats
-stab5 <- tract_final %>% 
+tract_final %>% 
   janitor::tabyl(nvi_cluster) %>% 
   janitor::adorn_pct_formatting(digits = 2) %>% 
   dplyr::transmute(nvi_cluster = nvi_cluster,
-                   n_percent = paste0('(n = ', n,', ', percent,')')) %>% 
-  dplyr::left_join(gen_stab5(tract_final, 'nvi') %>% dplyr::rename(nvi_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_age') %>% dplyr::rename(score_demo_age_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_femaleled') %>% dplyr::rename(score_demo_femaleled_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_immigration') %>% dplyr::rename(score_demo_immigration_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_disability') %>% dplyr::rename(score_demo_disability_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_singleparent') %>% dplyr::rename(score_demo_singleparent_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_mobility') %>% dplyr::rename(score_demo_mobility_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_demo_livealone') %>% dplyr::rename(score_demo_livealone_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_economic_incomepoverty') %>% dplyr::rename(score_economic_incomepoverty_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_economic_servicemanual') %>% dplyr::rename(score_economic_servicemanual_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_economic_gini') %>% dplyr::rename(score_economic_gini_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_economic_employment') %>% dplyr::rename(score_economic_employment_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_economic_education') %>% dplyr::rename(score_economic_education_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_economic_vehicleavail') %>% dplyr::rename(score_economic_vehicleavail_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_popdensity') %>% dplyr::rename(score_residential_popdensity_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_groupquarters') %>% dplyr::rename(score_residential_groupquarters_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_occperroom') %>% dplyr::rename(score_residential_occperroom_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_structage') %>% dplyr::rename(score_residential_structage_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_structattach') %>% dplyr::rename(score_residential_structattach_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_move1yr') %>% dplyr::rename(score_residential_move1yr_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_residential_vacancy') %>% dplyr::rename(score_residential_vacancy_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_healthstatus_lifestyle') %>% dplyr::rename(score_healthstatus_lifestyle_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_healthstatus_condition') %>% dplyr::rename(score_healthstatus_condition_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_healthstatus_preventive') %>% dplyr::rename(score_healthstatus_preventive_median_iqr = median_iqr)) %>%
-  dplyr::left_join(gen_stab5(tract_final, 'score_healthstatus_lackinsurance') %>% dplyr::rename(score_healthstatus_lackinsurance_median_iqr = median_iqr)) %>% 
-  t()
+                   n_percent = paste0(n, ' (', percent, ')'))
+  janitor::tabyl(nvi_cluster) %>% 
+  janitor::adorn_pct_formatting(digits = 2) %>% 
+  dplyr::transmute(nvi_cluster = nvi_cluster,
+                   n_percent = paste0(n, ' (', percent, ')')) %>% 
+  dplyr::left_join(gen_stab5(tract_final, 'nvi') %>% dplyr::rename(nvi_median_iqr = median_iqr)) %>% 
+  dplyr::left_join(gen_stab5(tract_final, 'score_demo')) %>% dplyr::rename(demo_median_iqr = median_iqr) %>% 
+  dplyr::left_join(gen_stab5(tract_final, 'score_economic')) %>% dplyr::rename(economic_median_iqr = median_iqr) %>% 
+  dplyr::left_join(gen_stab5(tract_final, 'score_residential')) %>% dplyr::rename(residential_median_iqr = median_iqr) %>% 
+  dplyr::left_join(gen_stab5(tract_final, 'score_healthstatus')) %>% dplyr::rename(healthstatus_median_iqr = median_iqr) 
 # text_summary %>% View()
-export(stab5, 'tabs/stab5.xlsx', row.names = TRUE)
-
-
-### CREATE: Heat maps to visualize clustering by subdomain
-library(data.table)
-stab5_check_heatmap <- stab5 %>% 
-  dplyr::as_tibble(rownames = 'subdomain') %>% 
-  dplyr::filter(!row_number() %in% c(1,2)) %>% 
-  dplyr::arrange(desc(row_number())) %>% # Reverse row order for heat map to show in desired order
-  dplyr::transmute(subdomain = subdomain,
-                   cluster1 = str_sub(V1, 1L, 4L) %>% as.numeric,
-                   cluster2 = str_sub(V2, 1L, 4L) %>% as.numeric,
-                   cluster3 = str_sub(V3, 1L, 4L) %>% as.numeric,
-                   cluster4 = str_sub(V4, 1L, 4L) %>% as.numeric,
-                   cluster5 = str_sub(V5, 1L, 4L) %>% as.numeric,
-                   cluster6 = str_sub(V6, 1L, 4L) %>% as.numeric) %>% 
-  as.data.table() %>% 
-  as.matrix(rownames = 'subdomain')
-# CREATE: heatmaps
-  # Order: original
-heatmap(stab5_check_heatmap, scale = 'row', Colv = NA, Rowv = NA)
-  # Order: by clustering
-heatmap(stab5_check_heatmap %>% head(-1), scale = 'row', Colv = NA)
+export(stab5, 'tabs/stab5.xlsx')
 ```
 
 
