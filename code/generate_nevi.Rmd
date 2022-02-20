@@ -1,0 +1,472 @@
+---
+title: "Developing a Neighborhood Environmental Vulnerability Index in New York City, 2019"
+author: 
+- "Stephen P. Uong" 
+- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
+date: "10/28/2021"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+---
+
+We developed a Neighborhood Environmental Vulnerability Index (NEVI) to measure vulnerability to environmental pollution. We applied the Toxicological Prioritization Index (ToxPi) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
+
+In this document, we have summarized our process that we followed to generate the NEVI. 
+
+### 1. Setup
+We set the working directory to one folder up from the RMarkdown file.
+```{r, setup}
+knitr::opts_knit$set(root.dir = '..') 
+```
+
+### 2. Loading the Libraries
+First, we loaded libraries to import our previously downloaded data and downloading the Census data.
+```{r, libraries}
+library(tidyverse)
+library(rio)
+library(cluster)
+library(nycgeo)
+library(tidycensus)
+```
+
+### 3. Importing the Already Downloaded Data
+We imported the: 
+
+- 2020 Centers for Disease Control and Disease Prevention (CDC) PLACES data at the Census tract level that we previously downloaded at the following [link](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Census-Tract-D/cwsq-ngmh). 
+- 2015-2019 5-Year Estimates from the U.S. Census American Community Survey (ACS)
+- List of Census Tracts to be excluded because of 1) a population of less than 20 or 2) at least 1 missing feature for the NEVI or Neighorhood Deprivation Index (NDI), one of the indices to which the NEVI was compared. 
+- Header needed to import the spreadsheet into the ToxPi Graphical User interface used to generate the NEVI
+- NYC borough of the Census tract
+
+```{r, import_data}
+setwd('C:/Users/steph/OneDrive - cumc.columbia.edu/Phi/My Courses/Columbia/Work/Research - Jeanette/projects/covid-vulnerability-index/comms/git nvi')
+# CDC PLACES data, 2020 release
+PLACES_orig <- rio::import('data/raw/PLACES_2020_release.csv')
+# U.S. Census, American Community Survey Data 5-Year Estimates, 2015-2019
+census_orig <- readRDS( file = "data/raw/us_census_acs_2019.rds")
+# Exclusions List
+tract_exclusions_list <- import("data/processed/EXCLUSION_LIST_20210628.csv")
+tract_exclusions_list_id <- tract_exclusions_list %>% 
+  dplyr::filter(flag_exclude_FINAL == 0) %>% 
+  dplyr::transmute(SID = as.character(GEOID))
+# Headers for Toxpi GUI
+header_toxpi <- read.csv("data/processed/toxpi/toxpi_header.csv", header = F, colClasses = rep("character",58))
+  # For sensitivity analysis of race/ethnicity
+header_toxpi_raceeth_hispsub <- read.csv("data/processed/toxpi/toxpi_header_raceeth_hispsub.csv", header = F, colClasses = rep("character",62))
+header_toxpi_raceeth <- read.csv("data/processed/toxpi/toxpi_header_raceeth.csv", header = F, colClasses = rep("character",62))
+# NYC Counties
+tract_nyc_borough <- nycgeo::nyc_boundaries(geography = "tract") %>% 
+  dplyr::as_tibble() %>% 
+  dplyr::select(-geometry) %>% 
+  dplyr::transmute(Tract_FIPS = geoid,
+                   borough = borough_name)
+```
+
+#### 3.1. (Skipped) Downloading the Census Data
+We used the following code to download data from the Census. The markdown file currently skips this code segment since we have imported the previously downloaded data above.
+```{r, import_census, eval = FALSE}
+# Please update with your own key if you would like to run this code.
+census_api_key('YOUR_CENSUS_API_KEY') 
+options(tigris_use_cache = TRUE)
+# Specify county names for Census data download
+county_names <- c('New York County', 'Kings County', 'Bronx County', 'Richmond County', 'Queens County')
+# Specify variables desired from the Census
+vars <- c(# age below, subject table
+          'B11005_001E','B11005_007E','B11005_010E', # female-led households
+          'B02001_001E','B02001_002E','B02001_003E','B02001_005E','B02001_004E','B02001_006E','B02001_007E','B02001_008E', # race
+          'B03002_001E','B03002_003E','B03002_004E','B03002_006E','B03002_005E','B03002_007E','B03002_008E','B03002_009E', # race, non-Hispanic
+          'B03003_001E','B03003_003E', # hispanic/latino
+          'B06007_001E','B06007_005E','B06007_008E', # lang- less than very well
+          'B16005_001E','B16005_007E','B16005_008E','B16005_012E','B16005_013E','B16005_017E','B16005_018E', # lang- not well/not at all
+            'B16005_022E','B16005_023E','B16005_029E','B16005_030E','B16005_034E','B16005_035E','B16005_039E',
+            'B16005_040E','B16005_044E','B16005_045E', 
+          'B05005_001E','B05005_002E','B05005_007E', # US entry period
+          'B05002_001E','B05002_013E', # Nativity (Foreign-born)
+          'B05001_001E','B05001_006E', # U.S. Citizenship
+          'B26001_001E', # Group quarters/institutionalization
+          # Disability below, subject table
+          'B23008_001E','B23008_008E','B23008_021E', # Single parent
+          'B08101_001E','B08101_009E','B08101_025E','B08101_041E','B08101_033E','B08101_049E', # Means of transportation to work
+          'B08303_001E','B08303_002E','B08303_003E','B08303_004E','B08303_005E','B08303_006E','B08303_007E', # Travel time to work
+            'B08303_008E','B08303_009E','B08303_010E','B08303_011E','B08303_012E','B08303_013E',
+            'B08013_001E', # Travel time to work (aggregate in minutes)
+          'B07013_001E','B07013_004E','B07013_007E','B07013_010E','B07013_013E','B07013_016E', # Geographic mobility in last year
+          'B11001_001E','B11001_008E', # Living alone
+          'B19013_001E', # Income, median
+          'C24010_001E','C24010_019E','C24010_030E','C24010_034E','C24010_055E','C24010_066E','C24010_070E', # Occupation
+          'B17001_001E','B17001_002E', # Poverty in last 12 months
+          'B19083_001E', # Gini index
+          'B23001_013E','B23001_020E','B23001_027E','B23001_034E','B23001_041E','B23001_048E','B23001_055E','B23001_062E','B23001_069E',
+          'B23001_099E','B23001_106E','B23001_113E','B23001_120E','B23001_127E','B23001_134E','B23001_141E','B23001_148E','B23001_155E',
+          'B23001_015E','B23001_022E','B23001_029E','B23001_036E','B23001_043E','B23001_050E','B23001_057E','B23001_064E','B23001_071E',
+          'B23001_101E','B23001_108E','B23001_115E','B23001_122E','B23001_129E','B23001_136E','B23001_143E','B23001_150E','B23001_157E', # Unemployment
+          'B15003_001E','B15003_002E','B15003_003E','B15003_004E','B15003_005E','B15003_006E','B15003_007E','B15003_008E', # Education, less HS
+          'B15003_009E','B15003_010E','B15003_011E','B15003_012E','B15003_013E','B15003_014E','B15003_015E','B15003_016E',
+          'B08014_001E','B08014_002E', # Vehicle available, no %
+            'B25046_001E', # Vehicle available, agg number
+            'B08015_001E', # Vehicle used in commuting 16+ age, agg number
+          'B01003_001E', # Population (need to use area for density)
+          'B25010_001E','B25010_002E','B25010_003E', # Average household size
+          'B25041_001E','B25041_002E','B25041_003E','B25041_004E','B25041_005E','B25041_006E','B25041_007E', # Bedrooms
+          'B25014_001E','B25014_002E','B25014_003E','B25014_004E','B25014_005E','B25014_006E', # Occupants per room
+            'B25014_007E','B25014_008E','B25014_009E','B25014_010E','B25014_011E','B25014_012E','B25014_013E',
+          'B25035_001E', # Structure built, median year
+          'B25024_001E','B25024_002E','B25024_003E','B25024_004E','B25024_005E','B25024_006E','B25024_007E', # Units in structure
+            'B25024_008E','B25024_009E','B25024_010E','B25024_011E',
+          'B25002_001E','B25002_003E', # vacancy status
+          'B25004_001E','B25004_002E','B25004_003E','B25004_004E','B25004_005E','B25004_006E','B25004_007E', # Vacancy status
+            'B25004_008E' 
+          )
+  # These vars sep b/c error with census tract code--> I think error in tidycensus source code & merging issues
+vars_subject <- c( 
+  'S0101_C02_022E','S0101_C02_030E', # age
+  'S1810_C03_001E' # disability
+)
+# Download data from the Census
+  # Note: Downloaded spatial data in order to get geographic variables (e.g. land area for population density)
+census_orig <- get_acs(geography = "tract", state = "NY", county = county_names, variables = vars, year = 2019, survey = "acs5", output = "wide", geometry = TRUE, keep_geo_vars = TRUE) %>% 
+  dplyr::as_tibble() %>% 
+  dplyr::select(-geometry)
+# Download data from the Census subject tables 
+census_orig_subject_table <- get_acs(geography = "tract", state = "NY", county = county_names, variables = vars_subject, year = 2019, survey = "acs5", output = "wide") %>% 
+  dplyr::select(-NAME)
+# Merge all Census data together by FIPS code 
+census_orig <- census_orig %>% 
+  left_join(census_orig_subject_table, by = "GEOID")
+# saveRDS(census_orig, file = "data/raw/us_census_acs_2019.rds")
+```
+
+### 4. Cleaning the data
+#### 4.1. Cleaning the CDC PLACES Data
+We first cleaned the CDC PLACES data, transforming variables so that larger values of features would correspond to greater vulnerability.
+```{r}
+gen_cdc_features <- function(indf, var_id){
+  indf %>% 
+    dplyr::mutate(id = as.character(!!sym(var_id)),
+                  CHECKUP_CrudePrev = -CHECKUP_CrudePrev - min(-CHECKUP_CrudePrev, na.rm = TRUE),
+                  COREM_CrudePrev = -COREM_CrudePrev - min(-COREM_CrudePrev, na.rm = TRUE),
+                  COREW_CrudePrev = -COREW_CrudePrev - min(-COREW_CrudePrev, na.rm = TRUE),
+                  DENTAL_CrudePrev = -DENTAL_CrudePrev - min(-DENTAL_CrudePrev, na.rm = TRUE),
+                  CERVICAL_CrudePrev = -CERVICAL_CrudePrev - min(-CERVICAL_CrudePrev, na.rm = TRUE),
+                  CHOLSCREEN_CrudePrev = -CHOLSCREEN_CrudePrev - min(-CHOLSCREEN_CrudePrev, na.rm = TRUE),
+                  COLON_SCREEN_CrudePrev = -COLON_SCREEN_CrudePrev - min(-COLON_SCREEN_CrudePrev, na.rm = TRUE),
+                  MAMMOUSE_CrudePrev = -MAMMOUSE_CrudePrev - min(-MAMMOUSE_CrudePrev, na.rm = TRUE)) %>% 
+    dplyr::select(id,
+      'CSMOKING_CrudePrev',  'BINGE_CrudePrev',  'LPA_CrudePrev',  'OBESITY_CrudePrev',  'SLEEP_CrudePrev',  
+      'BPHIGH_CrudePrev',  'BPMED_CrudePrev',  'CANCER_CrudePrev',  'CASTHMA_CrudePrev',  'CHD_CrudePrev',  
+      'STROKE_CrudePrev',  'COPD_CrudePrev',  'DIABETES_CrudePrev',  'HIGHCHOL_CrudePrev',  'KIDNEY_CrudePrev',  
+      'MHLTH_CrudePrev',  'PHLTH_CrudePrev',  'TEETHLOST_CrudePrev',  'CHECKUP_CrudePrev',  'COREM_CrudePrev',  
+      'COREW_CrudePrev',  'DENTAL_CrudePrev',  'CERVICAL_CrudePrev',  'CHOLSCREEN_CrudePrev',  
+      'COLON_SCREEN_CrudePrev',  'MAMMOUSE_CrudePrev',  'ACCESS2_CrudePrev') 
+}
+PLACES_clean <- gen_cdc_features(indf = PLACES_orig, var_id = "TractFIPS") %>% 
+  dplyr::rename(tract = id) 
+```
+
+#### 4.2. Cleaning the U.S. Census ACS Data
+We cleaned the U.S. Census ACS data, calculating proportions, transforming features so that larger values of features would correspond to greater vulnerability. Some of the features here were included in sensitivity analyses or are were previously considered by no longer included in the toxpi index. 
+```{r}
+gen_census_features <- function(indf, var_area){
+  outdf <- indf %>% 
+    dplyr::as_tibble() %>% 
+    dplyr::transmute(GEOID = as.character(GEOID),
+                     ### Demographics
+                     # Age
+                     prop_age_under18 = S0101_C02_022E/100,
+                     prop_age_65plus = S0101_C02_030E/100, 
+                     # Female-led households with children
+                     female_led_hh_prop = (B11005_007E + B11005_010E)/B11005_001E,
+                     # race/ethnicity
+                     white_prop = B02001_002E/B02001_001E,
+                     misc_nonwhite_prop = (B03002_001E - B03002_003E)/B03002_001E,
+                     black_prop = B02001_003E/B02001_001E,
+                     asian_prop = B02001_005E/B02001_001E,
+                     aian_prop = B02001_004E/B02001_001E,
+                     nhpi_prop = B02001_006E/B02001_001E, 
+                     race_other_prop = B02001_007E/B02001_001E,
+                     race_mult_prop = B02001_008E/B02001_001E,
+                     aian_nhpi_mult_other_prop = aian_prop + nhpi_prop + race_other_prop + race_mult_prop,
+                     hisp_prop = B03003_003E/B03003_001E,
+                        # race/ethnicity, not hispanic
+                     white_nonhisp_prop = B03002_003E/B03002_001E, 
+                     black_nonhisp_prop = B03002_004E/B03002_001E,
+                     asian_nonhisp_prop = B03002_006E/B03002_001E,
+                     aian_nonhisp_prop = B03002_005E/B03002_001E,
+                     nhpi_nonhisp_prop = B03002_007E/B03002_001E, 
+                     race_other_nonhisp_prop = B03002_008E/B03002_001E,
+                     race_mult_nonhisp_prop = B03002_009E/B03002_001E,
+                     aian_nhpi_mult_other_nonhisp_prop = aian_nonhisp_prop + nhpi_nonhisp_prop + race_other_nonhisp_prop + race_mult_nonhisp_prop,
+                      # Segregation
+                     ice_neg_black = ((B02001_003E - white_nonhisp_prop)/B02001_001E) + 1, # +1 to avoid negative values, flipped from original ICE (so instead 1+1 (2) = most deprived vs. -1+1(0) ) 
+                     ice_neg_aian = ((B02001_004E - white_nonhisp_prop)/B02001_001E) + 1,
+                     ice_neg_asian = ((B02001_005E - white_nonhisp_prop)/B02001_001E) + 1,
+                     ice_neg_nhpi = ((B02001_006E - white_nonhisp_prop)/B02001_001E) + 1,
+                     ice_neg_race_other = ((B02001_007E - white_nonhisp_prop)/B02001_001E) + 1,
+                     ice_neg_race_mult = ((B02001_008E - white_nonhisp_prop)/B02001_001E) + 1,
+                     ice_neg_hisp = ((B03003_003E - white_nonhisp_prop)/B03003_001E) + 1,
+                     ice_neg_nonwhite = ((misc_nonwhite_prop - white_nonhisp_prop)/B03003_001E) + 1, 
+                     # language
+                     eng_lim_prop = (B16005_007E+B16005_008E+B16005_012E+B16005_013E+B16005_017E+B16005_018E+
+                                       B16005_022E+B16005_023E+B16005_029E+B16005_030E+B16005_034E+B16005_035E+
+                                       B16005_039E+B16005_040E+B16005_044E+B16005_045E)/B16005_001E,
+                     # US entry period
+                     usentry_2010_prop = B05005_002E/B05005_001E,
+                     # Nativity
+                     forborn_prop = B05002_013E/B05002_001E,
+                     # US Citizenship
+                     uscitizen_no_prop = B05001_006E/B05001_001E,
+                     # Disability status
+                     disability_prop = S1810_C03_001E/100,
+                     # Single Parent
+                     single_parent_prop = (B23008_008E+B23008_021E)/B23008_001E,
+                     # Means of transportation to work
+                     publictrans_taxi_mcycle_bike_walk_prop = (B08101_025E+B08101_041E+B08101_033E)/B08101_001E,
+                     # Travel time
+                     travel_time_work_minute = B08013_001E,
+                     # living alone
+                     prop_living_alone = B11001_008E/B11001_001E,
+                     ### Economic Indicators
+                     # Income
+                     income1yr_neg_median = -B19013_001E - min(-B19013_001E, na.rm = TRUE), # MADE NEGATIVE B/C REVERSE DIRECTION
+                     # Poverty
+                     poverty1yr_prop = B17001_002E/B17001_001E,
+                     # Occupation
+                     service_manual_prop = (C24010_019E+C24010_030E+C24010_034E+C24010_055E+C24010_066E+C24010_070E)/C24010_001E,
+                     # Gini index
+                     gini_index = B19083_001E,
+                     # Unemployment
+                     unemployment_prop = (B23001_015E+B23001_022E+B23001_029E+B23001_036E+B23001_043E+B23001_050E+B23001_057E+B23001_064E+B23001_071E+B23001_101E+B23001_108E+B23001_115E+B23001_122E+B23001_129E+B23001_136E+B23001_143E+B23001_150E+B23001_157E)/(B23001_013E+B23001_020E+B23001_027E+B23001_034E+B23001_041E+B23001_048E+B23001_055E+B23001_062E+B23001_069E+B23001_099E+B23001_106E+B23001_113E+B23001_120E+B23001_127E+B23001_134E+B23001_141E+B23001_148E+B23001_155E), # among those in labor force
+                     # Education
+                     education_less_hs_prop = (B15003_002E+B15003_003E+B15003_004E+B15003_005E+B15003_006E+B15003_007E+B15003_008E+B15003_009E+
+                                               B15003_010E+B15003_011E+B15003_012E+B15003_013E+B15003_014E+B15003_015E+B15003_016E)/B15003_001E,
+                     # Vehicle
+                     vehicle_avail_no_prop = B08014_002E/B08014_001E,
+                     ### Residential density
+                     # Population density
+                     pop_density = B01003_001E/(!!sym(var_area)/2589988.1103), # denom: convert square meters to square miles
+                     # Group quarters
+                     group_quarters_prop = B26001_001E/B01003_001E,
+                     # Occupants per room
+                     occ_room_1_01plus_prop = (B25014_005E+B25014_006E+B25014_007E+B25014_011E+B25014_012E+B25014_013E)/B25014_001E,
+                     # Year structure built
+                     B25035_001E_update = ifelse(B25035_001E == 0, 1939, B25035_001E), # Plug in 1939 for values 1939 or earlier
+                     B25035_001E_update = ifelse(B25035_001E_update == 18, NA, B25035_001E_update), # Plug in missing for weird values of 18 for year for now
+                     age_structure_2019 = 2019 - B25035_001E_update,
+                     # Type of housing
+                     str_units_1att_2plus_mobile_boat_rv_van_prop = (B25024_003E+B25024_004E+B25024_005E+B25024_006E+B25024_007E+B25024_008E+B25024_009E+B25024_010E+B25024_011E)/B25024_001E,
+                     str_units_20plus = (B25024_008E+B25024_009E)/B25024_001E,
+                     # Geographic mobility
+                     move1yr_prop = (B07013_007E+B07013_010E+B07013_013E+B07013_016E)/B07013_001E,
+                     # Housing vacancy
+                     str_vacancy_prop = B25002_003E/B25002_001E,
+                     ##### MISC ##### 
+                     misc_income1yr_median = B19013_001E,
+                     misc_pop = B01003_001E, 
+                     misc_sqmi = !!sym(var_area)/2589988.1103, 
+                     )
+  return(outdf)
+}
+census_features <- gen_census_features(indf = census_orig, var_area = "ALAND")
+census_clean <- census_orig %>% 
+  dplyr::transmute(row = row_number(),
+                   tract = as.character(GEOID),
+                   CASRN = '',
+                   Name = '') %>% 
+  dplyr::inner_join(census_features %>% dplyr::rename(tract = GEOID), by = "tract")
+
+```
+
+#### 4.3. Merging the Data and Applying Exclusions
+We merged the data from the CDC 500 Cities project and the U.S. Census before appylying our exclusions, census tracts that had 1) a population of less than 20 and 2) at least 1 missing feature for the NEVI or Neighorhood Deprivation Index (NDI), one of the indices to which the NEVI was compared. 
+```{r, include = FALSE}
+# Variable remove list
+vars_remove <- c('B25035_001E_update', 
+                 'white_prop', 'aian_prop', 'nhpi_prop', 'race_other_prop', 'race_mult_prop', 'black_prop', 'asian_prop', 'aian_nhpi_mult_other_prop','misc_nonwhite_prop',
+                 'black_nonhisp_prop','asian_nonhisp_prop','aian_nhpi_mult_other_nonhisp_prop','hisp_prop', # remove all race/ethnicity variables 20211214
+                 'white_nonhisp_prop','aian_nonhisp_prop', 'nhpi_nonhisp_prop', 'race_other_nonhisp_prop', 'race_mult_nonhisp_prop',
+                 'ice_neg_nonwhite', 'ice_neg_black', 'ice_neg_aian', 'ice_neg_asian', 'ice_neg_nhpi', 'ice_neg_race_other', 'ice_neg_race_mult', 'ice_neg_hisp',
+                 'misc_income1yr_median', 'misc_sqmi', 'misc_pop')  
+# Merge and apply exclusions: 1) < 20 pop, 2) at least 1 missing feature for NEVI or NDI
+tract_exclusions <- census_clean %>% 
+  dplyr::left_join(PLACES_clean, by = "tract") %>% 
+  dplyr::rename(SID = tract) %>% 
+  dplyr::inner_join(tract_exclusions_list_id, by = "SID") %>% 
+  dplyr::select(.dots = -c(vars_remove))
+### SENSITIVITY ANALYSIS of race/ethnicity
+  # CREATE: df with other race variables 
+vars_remove_sa <- c('B25035_001E_update', 
+                    # 'white_prop', 'aian_prop', 'nhpi_prop', 'race_other_prop', 'race_mult_prop', 'black_prop', 'asian_prop', 'aian_nhpi_mult_other_prop',
+                    'misc_nonwhite_prop',
+                    # 'white_nonhisp_prop','aian_nonhisp_prop', 'nhpi_nonhisp_prop', 'race_other_nonhisp_prop', 'race_mult_nonhisp_prop',
+                    'ice_neg_nonwhite', 'ice_neg_black', 'ice_neg_aian', 'ice_neg_asian', 'ice_neg_nhpi', 'ice_neg_race_other', 'ice_neg_race_mult', 'ice_neg_hisp',
+                    'misc_income1yr_median', 'misc_sqmi', 'misc_pop')  
+tract_exclusions_sa <- census_clean %>% 
+  dplyr::left_join(PLACES_clean, by = "tract") %>% 
+  dplyr::rename(SID = tract) %>% 
+  dplyr::inner_join(tract_exclusions_list_id, by = "SID") %>% 
+  dplyr::select(.dots = -c(vars_remove_sa))
+tract_exclusions_sa_raceeth_olap <- tract_exclusions_sa %>% 
+  dplyr::select(-c(white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
+                   black_nonhisp_prop, asian_nonhisp_prop, aian_nhpi_mult_other_nonhisp_prop,
+                   white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
+tract_exclusions_sa_raceeth_no_olap <- tract_exclusions_sa %>% 
+  dplyr::select(-c(white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
+                   black_prop, asian_prop, aian_nhpi_mult_other_prop,
+                   white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
+```
+
+#### 4.4. Adding a header to the dataset to use in the ToxPi Graphical User Interface (GUI)
+We added a header needed to import the spreadsheet into the ToxPi GUI. The header contains information about the slices, slice weights, name of the slices, and color of the slices.
+```{r, add_toxpi_header}
+bind_toxpi_header <- function(df_header, df_features){
+  colnames_features <- names(df_features)
+  df_colnames_features <- data.frame(matrix(ncol = length(colnames_features), colnames_features))
+  rbind(setNames(df_header, colnames_features), # header
+        setNames(df_colnames_features, colnames_features),  # column names
+        df_features) # features
+}
+toxpi_export <- bind_toxpi_header(header_toxpi, tract_exclusions)
+
+# For sensitivity analyses of race/ethnicity
+toxpi_export_raceeth_olap <- bind_toxpi_header(header_toxpi_raceeth, tract_exclusions_sa_raceeth_olap)
+toxpi_export_raceeth_no_olap <- bind_toxpi_header(header_toxpi_raceeth, tract_exclusions_sa_raceeth_no_olap)
+toxpi_export_raceeth_hispsub <- bind_toxpi_header(header_toxpi_raceeth_hispsub, tract_exclusions_sa_raceeth_no_olap)
+```
+
+### 5. Exporting the Features Used in the NEVI
+We exported our data into a spreadsheet with the NEVI features and the header needed to import the spreadsheet into the ToxPi GUI.
+```{r, export_features}
+export(tract_exclusions, "data/processed/nevi_features.csv", col.names = TRUE)
+export(toxpi_export, "data/processed/nevi_features_toxpi.csv", col.names = FALSE)
+  # For sensitivity analyses of race/ethnicity
+export(toxpi_export_raceeth_olap, "data/processed/nevi_features_toxpi_sa_raceeth_olap.csv", col.names = FALSE)
+export(toxpi_export_raceeth_no_olap, "data/processed/nevi_features_toxpi_sa_raceeth_no_olap.csv", col.names = FALSE)
+export(toxpi_export_raceeth_hispsub, "data/processed/nevi_features_toxpi_sa_raceeth_hispsub.csv", col.names = FALSE)
+```
+
+
+### 6. Generating the NEVI using the ToxPi GUI
+To generate the NEVI in the ToxPi GUI, we followed the following steps:
+1. Downloaded ToxPi Graphical User Interface (GUI) at this link. We used version 2.3 in our original version of the NEVI (August 2019 update): https://toxpi.org/
+2. Followed the steps in the NEVI ToxPi GUI tutorial (nevi_toxpi_gui_tutorial.docx) to generate the NEVI before running the rest of the R code.
+
+
+### 7: Importing the Index Generated from the ToxPi GUI
+After generating the index in the ToxPi GUI, we imported the CSV file containing the index that was previously exported from the software.
+```{r, import_index}
+tract_toxpi_pre <- import('data/processed/toxpi/nevi_toxpi_results.csv')
+```
+
+### 8. Creating the NEVI Clusters 
+We created clusters from the slices/subdomains for the NEVI
+```{r, create_nevi_clusters}
+# CREATE: Clusters, Code from developers of toxpi
+set.seed(123)
+  # Get slice weights
+w <- sapply(sapply(names(tract_toxpi_pre)[-c(1:5)],function(x) strsplit(x, "!")),"[",2)
+w <- sapply(strsplit(w,split="/"),function(x) {y <- ifelse(length(x)==2,x[2],1);as.numeric(x[1])/as.numeric(y)})
+  # Generate cluster
+hc <- hclust(dist(tract_toxpi_pre[,-c(1:5)]*rep(w,each=nrow(tract_toxpi_pre))), method="complete")
+nevi_cluster_result <- cutree(hc, k = 6) # Cut into 6 clusters using HClusts 
+  # Create data frame for cluster data
+tract_nevi_cluster <- tract_toxpi_pre %>% 
+  dplyr::mutate(SID = Source %>% as.character() %>% trimws(),
+                nevi_cluster_orig = nevi_cluster_result %>% as.factor(),
+                nevi_cluster = case_when(
+                  nevi_cluster_orig == "1" ~ "6",
+                  nevi_cluster_orig == "2" ~ "5",
+                  nevi_cluster_orig == "3" ~ "4",
+                  nevi_cluster_orig == "4" ~ "3",
+                  nevi_cluster_orig == "5" ~ "2",
+                  nevi_cluster_orig == "6" ~ "1"
+                ) %>% as.factor()) %>% 
+  dplyr::select(SID, nevi_cluster)
+```
+
+
+### 8.1. Checking the clusters
+Below is code we used to check the clusters to help determine how many clusters we should use.
+```{r, check_clusters}
+scaled_tract_toxpi_pre = scale(tract_toxpi_pre[-c(1:5)])
+mydist<-function(x)dist(x, method="euclidian")
+mycluster <- function(x,k) list(cluster=cutree(hclust(mydist(x), method = "complete"),k=k))
+gap_stat_10 <- clusGap(scaled_tract_toxpi_pre, FUN = mycluster, K.max = 10, B = 50)
+library(factoextra)
+fviz_gap_stat(gap_stat_10) # choose 6 clusters based on this plot and what we observed when characterizing the clusters.
+```
+
+
+### 8. Cleaning the data from ToxPi GUI
+We renamed the subdomain slices and manually calculated domain-specific scores for the NEVI.
+```{r, clean_index, eval = FALSE}
+# CREATE: Function to clean the data
+clean_toxpi <- function(datain){
+  dataout <- datain %>% 
+    dplyr::rename(SID = Source, nevi = `ToxPi Score`) %>% 
+    dplyr::mutate(SID = as.character(SID) %>% trimws()) %>% 
+    dplyr::select(-c(`HClust Group`, `KMeans Group`, Name)) %>% 
+    # Demographics Domain
+    dplyr::rename_at(vars(starts_with('DemographicsAge')), funs(paste0('score_demo_age'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsFemaleLed')), funs(paste0('score_demo_femaleled'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsImmigration')), funs(paste0('score_demo_immigration'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsDisability')), funs(paste0('score_demo_disability'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsSingleParent')), funs(paste0('score_demo_singleparent'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsMobility')), funs(paste0('score_demo_mobility'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsLiveAlone')), funs(paste0('score_demo_livealone'))) %>% 
+    # Economic Domain
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsIncomePoverty')), funs(paste0('score_economic_incomepoverty'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsServiceManualJobs')), funs(paste0('score_economic_servicemanual'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsGini')), funs(paste0('score_economic_gini'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsEmployment')), funs(paste0('score_economic_employment'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsEducation')), funs(paste0('score_economic_education'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsVehicleAvail')), funs(paste0('score_economic_vehicleavail'))) %>% 
+    # Residential Domain
+    dplyr::rename_at(vars(starts_with('Residential DensityPopDensity')), funs(paste0('score_residential_popdensity'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityGroupQuarters')), funs(paste0('score_residential_groupquarters'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityOccPerRoom')), funs(paste0('score_residential_occperroom'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityStrAge')), funs(paste0('score_residential_structage'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityStrAttached')), funs(paste0('score_residential_structattach'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityMove1Yr')), funs(paste0('score_residential_move1yr'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityVacancy')), funs(paste0('score_residential_vacancy'))) %>% 
+    # Health status Domain
+    dplyr::rename_at(vars(starts_with('Health StatusLifestyle')), funs(paste0('score_healthstatus_lifestyle'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusCondition')), funs(paste0('score_healthstatus_condition'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusPreventive')), funs(paste0('score_healthstatus_preventive'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusLackInsurance')), funs(paste0('score_healthstatus_lackinsurance'))) %>% 
+    # Checked: Calculated NEVI score is same as one calculated in toxpi (just rounding differences)
+    dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/7,
+                  score_economic = (score_economic_incomepoverty + score_economic_servicemanual + score_economic_gini + score_economic_employment + score_economic_education + score_economic_vehicleavail)/6,
+                  score_residential = (score_residential_popdensity + score_residential_groupquarters + score_residential_occperroom + score_residential_structage + score_residential_structattach + score_residential_move1yr + score_residential_vacancy)/7,
+                  score_healthstatus = (score_healthstatus_lifestyle + score_healthstatus_condition + score_healthstatus_preventive + score_healthstatus_lackinsurance)/4)
+  return(dataout)
+}
+
+# CLEAN: Data from ToxPi GUI
+tract_toxpi <- clean_toxpi(tract_toxpi_pre)
+```
+
+
+### 9. Merging the NEVI with the NEVI features and clusters
+We merged the following data: NEVI, NEVI features, and NEVI clusters.
+```{r, merge_index}
+tract_final <- tract_exclusions %>% # NEVI features
+  dplyr::left_join(tract_toxpi, by = "SID") %>%  # NEVI (from the ToxPi GUI)
+  dplyr::left_join(tract_nevi_cluster, by = "SID") %>%  # NEVI clusters
+  dplyr::rename(Tract_FIPS = SID) %>% 
+  dplyr::left_join(tract_nyc_borough, by = "Tract_FIPS") %>% 
+  dplyr::relocate(borough, nevi, nevi_cluster, score_demo, score_economic, score_residential, score_healthstatus, .after = Tract_FIPS) %>% 
+  dplyr::select(-c(row, CASRN, Name)) 
+```
+
+
+### 10. Exporting the final data with the NEVI, features, and clusters
+After completing all importing and data cleaning steps, we exported our final dataset, which included the NEVI, NEVI features, and NEVI clusters.
+```{r, export_final_data}
+export(tract_final, paste0("data/processed/nevi_final.csv"))
+saveRDS(tract_final, file = "data/processed/nevi_final.rds")
+```
+
+
+
+
