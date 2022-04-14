@@ -1,0 +1,147 @@
+---
+title: "Neighborhood Environmental Vulnerability Index, 2019: Cleaning NEVI Data from ToxPi GUI Output"
+author: 
+- "Stephen P. Uong" 
+- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
+date: "3/29/2022"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+---
+
+In this document, we have summarized our process that we followed to generate the NEVI. 
+
+### 1. Setup
+Set the working directory to one folder up from the RMarkdown file for later data export.
+```{r, setup}
+knitr::opts_knit$set(root.dir = '..') 
+```
+
+### 2. Loading the Libraries
+Load the following required libraries.
+```{r, libraries}
+library(tidyverse)
+library(rio)
+library(cluster)
+library(nycgeo)
+```
+
+### 3: Importing the Index Generated from the ToxPi GUI
+After generating the index in the ToxPi GUI, we imported the CSV file containing the index that was previously exported from the software.
+```{r, import_index}
+tract_toxpi_pre <- import('data/processed/toxpi/nevi_toxpi_results.csv')
+```
+
+### 4. Creating the NEVI Clusters 
+We created clusters from the slices/subdomains for the NEVI
+```{r, create_nevi_clusters}
+# CREATE: Clusters, Code from developers of toxpi
+set.seed(123)
+  # Get slice weights
+w <- sapply(sapply(names(tract_toxpi_pre)[-c(1:5)],function(x) strsplit(x, "!")),"[",2)
+w <- sapply(strsplit(w,split="/"),function(x) {y <- ifelse(length(x)==2,x[2],1);as.numeric(x[1])/as.numeric(y)})
+  # Generate cluster
+hc <- hclust(dist(tract_toxpi_pre[,-c(1:5)]*rep(w,each=nrow(tract_toxpi_pre))), method="complete")
+nevi_cluster_result <- cutree(hc, k = 6) # Cut into 6 clusters using HClusts 
+  # Create data frame for cluster data
+tract_nevi_cluster <- tract_toxpi_pre %>% 
+  dplyr::mutate(SID = Source %>% as.character() %>% trimws(),
+                nevi_cluster_orig = nevi_cluster_result %>% as.factor(),
+                nevi_cluster = case_when(
+                  nevi_cluster_orig == "1" ~ "6",
+                  nevi_cluster_orig == "2" ~ "5",
+                  nevi_cluster_orig == "3" ~ "4",
+                  nevi_cluster_orig == "4" ~ "3",
+                  nevi_cluster_orig == "5" ~ "2",
+                  nevi_cluster_orig == "6" ~ "1"
+                ) %>% as.factor()) %>% 
+  dplyr::select(SID, nevi_cluster)
+```
+
+
+### 4.1. Checking the clusters
+Below is code we used to check the clusters to help determine how many clusters we should use.
+```{r, check_clusters}
+scaled_tract_toxpi_pre = scale(tract_toxpi_pre[-c(1:5)])
+mydist<-function(x)dist(x, method="euclidian")
+mycluster <- function(x,k) list(cluster=cutree(hclust(mydist(x), method = "complete"),k=k))
+gap_stat_10 <- clusGap(scaled_tract_toxpi_pre, FUN = mycluster, K.max = 10, B = 50)
+library(factoextra)
+fviz_gap_stat(gap_stat_10) # choose 6 clusters based on this plot and what we observed when characterizing the clusters.
+```
+
+
+### 5. Cleaning the data from ToxPi GUI
+We renamed the subdomain slices and manually calculated domain-specific scores for the NEVI.
+```{r, clean_index, eval = FALSE}
+# CREATE: Function to clean the data
+clean_toxpi <- function(datain){
+  dataout <- datain %>% 
+    dplyr::rename(SID = Source, nevi = `ToxPi Score`) %>% 
+    dplyr::mutate(SID = as.character(SID) %>% trimws()) %>% 
+    dplyr::select(-c(`HClust Group`, `KMeans Group`, Name)) %>% 
+    # Demographics Domain
+    dplyr::rename_at(vars(starts_with('DemographicsAge')), funs(paste0('score_demo_age'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsFemaleLed')), funs(paste0('score_demo_femaleled'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsImmigration')), funs(paste0('score_demo_immigration'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsDisability')), funs(paste0('score_demo_disability'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsSingleParent')), funs(paste0('score_demo_singleparent'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsMobility')), funs(paste0('score_demo_mobility'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsLiveAlone')), funs(paste0('score_demo_livealone'))) %>% 
+    # Economic Domain
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsIncomePoverty')), funs(paste0('score_economic_incomepoverty'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsServiceManualJobs')), funs(paste0('score_economic_servicemanual'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsGini')), funs(paste0('score_economic_gini'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsEmployment')), funs(paste0('score_economic_employment'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsEducation')), funs(paste0('score_economic_education'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsVehicleAvail')), funs(paste0('score_economic_vehicleavail'))) %>% 
+    # Residential Domain
+    dplyr::rename_at(vars(starts_with('Residential DensityPopDensity')), funs(paste0('score_residential_popdensity'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityGroupQuarters')), funs(paste0('score_residential_groupquarters'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityOccPerRoom')), funs(paste0('score_residential_occperroom'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityStrAge')), funs(paste0('score_residential_structage'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityStrAttached')), funs(paste0('score_residential_structattach'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityMove1Yr')), funs(paste0('score_residential_move1yr'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityVacancy')), funs(paste0('score_residential_vacancy'))) %>% 
+    # Health status Domain
+    dplyr::rename_at(vars(starts_with('Health StatusLifestyle')), funs(paste0('score_healthstatus_lifestyle'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusCondition')), funs(paste0('score_healthstatus_condition'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusPreventive')), funs(paste0('score_healthstatus_preventive'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusLackInsurance')), funs(paste0('score_healthstatus_lackinsurance'))) %>% 
+    # Checked: Calculated NEVI score is same as one calculated in toxpi (just rounding differences)
+    dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/7,
+                  score_economic = (score_economic_incomepoverty + score_economic_servicemanual + score_economic_gini + score_economic_employment + score_economic_education + score_economic_vehicleavail)/6,
+                  score_residential = (score_residential_popdensity + score_residential_groupquarters + score_residential_occperroom + score_residential_structage + score_residential_structattach + score_residential_move1yr + score_residential_vacancy)/7,
+                  score_healthstatus = (score_healthstatus_lifestyle + score_healthstatus_condition + score_healthstatus_preventive + score_healthstatus_lackinsurance)/4)
+  return(dataout)
+}
+
+# CLEAN: Data from ToxPi GUI
+tract_toxpi <- clean_toxpi(tract_toxpi_pre)
+```
+
+
+### 6. Merging the NEVI with the NEVI features and clusters
+We merged the following data: NEVI, NEVI features, and NEVI clusters.
+```{r, merge_index}
+tract_final <- tract_exclusions %>% # NEVI features
+  dplyr::left_join(tract_toxpi, by = "SID") %>%  # NEVI (from the ToxPi GUI)
+  dplyr::left_join(tract_nevi_cluster, by = "SID") %>%  # NEVI clusters
+  dplyr::rename(Tract_FIPS = SID) %>% 
+  dplyr::left_join(tract_nyc_borough, by = "Tract_FIPS") %>% 
+  dplyr::relocate(borough, nevi, nevi_cluster, score_demo, score_economic, score_residential, score_healthstatus, .after = Tract_FIPS) %>% 
+  dplyr::select(-c(row, CASRN, Name)) 
+```
+
+
+### 7. Exporting the final data with the NEVI, features, and clusters
+After completing all importing and data cleaning steps, we exported our final dataset, which included the NEVI, NEVI features, and NEVI clusters.
+```{r, export_final_data}
+export(tract_final, paste0("data/processed/nevi_final.csv"))
+saveRDS(tract_final, file = "data/processed/nevi_final.rds")
+```
+
+
+
+

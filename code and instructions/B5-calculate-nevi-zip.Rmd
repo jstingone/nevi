@@ -1,0 +1,106 @@
+---
+title: "Neighborhood Environmental Vulnerability Index, 2019: Calculate "
+author: 
+- "Stephen P. Uong" 
+- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
+date: "2/9/2022"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+---
+
+
+### 1. SETUP
+Set the working directory to one folder up from the RMarkdown file for later data export.
+```{r, setup}
+knitr::opts_knit$set(root.dir = '..') 
+```
+
+### 2. LOAD LIBRARIES
+Load the following required libraries.
+```{r, libraries}
+pacman::p_load(
+  rio,
+  tidyverse
+)
+```
+
+### 3. IMPORT DATA
+```{r, import_data}
+# Zip code list from NYC DOHMH ZCTA list, Source link: https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk
+list_nyc_zip <- readr::read_csv('data/raw/Modified_Zip_Code_Tabulation_Areas__MODZCTA_.csv') %>% 
+  dplyr::select(ZCTA) %>% 
+  tidyr::separate_rows(ZCTA, sep = ',') %>% 
+  dplyr::transmute(zip = trimws(ZCTA))
+# HUD USPS Tract-Zip Crosswalk, Source link: https://www.huduser.gov/portal/datasets/usps_crosswalk.html
+xwalk_zip_tract <- readxl::read_excel("data/raw/ZIP_TRACT_122019.xlsx", col_types = c(rep('guess',2),rep('numeric',4)))
+# Tract-level NEVI scores generate from the generate_nevi.Rmd code
+nevi_tract_orig <- readRDS(file = "data/processed/nevi_final.rds")
+
+# INCLUSION AND EXCLUSIONS
+  # INCLUDE: NYC DOHMH zip codes only
+xwalk_zip_tract_nyc_prelim <- xwalk_zip_tract %>%
+  dplyr::select(ZIP, TRACT, RES_RATIO) %>% 
+  dplyr::rename(zip = ZIP) %>% 
+  dplyr::mutate(zip = zip %>% trimws(),
+                TRACT = TRACT %>% trimws()) %>% 
+  dplyr::inner_join(list_nyc_zip, by = 'zip')
+  # Exclusion list: Generate list of zip codes with total residential ratio = 0 (30 NYC zip codes)
+list_exclude_zip_resratio0 <- xwalk_zip_tract_nyc_prelim %>% 
+  dplyr::group_by(zip) %>% 
+  dplyr::summarize(RES_RATIO_total = sum(RES_RATIO)) %>% 
+  dplyr::filter(RES_RATIO_total == 0)
+  # Exclusion data frame
+xwalk_zip_tract_nyc <- xwalk_zip_tract_nyc_prelim %>% 
+  # EXCLUDE: zip codes with total residential ratio = 0
+  dplyr::anti_join(list_exclude_zip_resratio0, by = 'zip')
+
+```
+
+## 4. CLEAN DATA
+```{r}
+# Subset columns
+nevi_tract <- nevi_tract_orig %>% 
+  dplyr::rename(TRACT = Tract_FIPS) %>% 
+  dplyr::select(TRACT, nevi, score_demo, score_economic, score_residential, score_healthstatus)
+# Calculate by zip code
+nevi_zip_calc <- xwalk_zip_tract_nyc %>%
+  dplyr::inner_join(nevi_tract, by = 'TRACT') %>% 
+  # Multiply tract-level scores by residential ratio
+  dplyr::transmute(zip = zip,
+                   tract = TRACT,
+                   res_ratio_part = RES_RATIO,
+                   nevi_part = nevi*RES_RATIO,
+                   score_demo_part = score_demo*RES_RATIO,
+                   score_economic_part = score_economic*RES_RATIO,
+                   score_residential_part = score_residential*RES_RATIO,
+                   score_healthstatus_part = score_healthstatus*RES_RATIO) %>% 
+  dplyr::group_by(zip) %>% 
+  # Sum scores by zip code (multiple tracts per zip code)
+  dplyr::summarize(res_ratio_sum = sum(res_ratio_part),
+                   nevi = sum(nevi_part),
+                   score_demo = sum(score_demo_part),
+                   score_economic = sum(score_economic_part),
+                   score_residential = sum(score_residential_part),
+                   score_healthstatus = sum(score_healthstatus_part)) %>% 
+  # Divide summed scores by summed residential ratio (b/c not all tracts in crosswalk file was in the NEVI tract dataset)
+  dplyr::mutate(nevi = nevi/res_ratio_sum,
+                score_demo = score_demo/res_ratio_sum,
+                score_economic = score_economic/res_ratio_sum,
+                score_residential = score_residential/res_ratio_sum,
+                score_healthstatus = score_healthstatus/res_ratio_sum) %>% 
+  # EXCLUDE: 1 Zip (11430) with total RES_RATIO = 0 (b/c other census tract in zip code was not in census tract dataset, excluded b/c pop <20 or missing feature)
+  dplyr::filter(res_ratio_sum != 0) %>% 
+  dplyr::select(-res_ratio_sum)
+```
+
+## 5. EXPORT DATA
+```{r}
+# NOTE: Some zip codes had RES_RATIO = 0
+export(nevi_zip_calc, 'data/processed/nevi_final_zip.csv')
+saveRDS(nevi_zip_calc, file = "data/processed/nevi_final_zip.rds")
+```
+
+
+

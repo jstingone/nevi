@@ -1,0 +1,605 @@
+---
+title: "Describing the NVI and Comparison the the NVI to the NDI/SVI: Results and Figures"
+author: 
+- "Stephen P. Uong" 
+- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
+date: "10/28/2021"
+output: 
+  html_document: 
+    toc: true
+    toc_float: true
+---
+
+We developed a Neighborhood Vulnerability Index (NVI) to measure vulnerability to environmental pollution. We applied the Toxicological Prioritization Index (ToxPi) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
+
+In this document, we have included code we used to generate results and figures that we used when evaluating the NVI and comparing the NVI to the Neighborhood Deprivation Index (NDI)/ Social Vulnerability Index (SVI).
+
+### 1. Setup
+We set the working directory to one folder up from the RMarkdown file.
+```{r, setup}
+knitr::opts_knit$set(root.dir = '..') 
+```
+
+### 2. Loading Libraries
+```{r, libraries}
+library(tidyverse)
+library(rio)
+library(skimr)
+library(janitor)
+library(cluster)
+library(factoextra)
+# library(Amelia)
+# library(janitor)
+# library(cluster)
+# Mapping
+library(sf)
+library(ggpubr)
+library(ggsn)
+library(ggspatial)
+library(nycgeo)
+# Plots
+library(ggpubr)
+library(colorBlindness)
+library(ggpattern) # Ref: https://coolbutuseless.github.io/package/ggpattern/index.html
+
+```
+
+
+### 3: Importing the Index Generated from the ToxPi GUI, NVI features, NDI, and SVI
+```{r}
+setwd('C:/Users/steph/OneDrive - cumc.columbia.edu/Phi/My Courses/Columbia/Work/Research - Jeanette/projects/covid-vulnerability-index/comms/git nvi')
+
+### IMPORT: Cleaned NVI data with the NVI, NVI features, and NVI clusters
+tract_final <- readRDS(file = "data/processed/nvi_final.rds")
+### IMPORT: NYC specific Census tract boundaries
+tract_nyc_spatial <- nycgeo::nyc_boundaries(geography = "tract") %>% 
+  dplyr::transmute(Tract_FIPS = geoid)
+tract_nyc_county <- nycgeo::nyc_boundaries(geography = "tract") %>% 
+  dplyr::as_tibble() %>% 
+  dplyr::select(-geometry) %>% 
+  dplyr::transmute(Tract_FIPS = geoid,
+                   county = county_name)
+
+### IMPORT: Exclusions List
+tract_exclusions_list <- import("data/processed/EXCLUSION_LIST_20210628.csv")
+tract_exclusions_list_id <- tract_exclusions_list %>% 
+  dplyr::filter(flag_exclude_FINAL == 0) %>% 
+  dplyr::transmute(SID = as.character(GEOID))
+
+### IMPORT: NDI, SVI
+ndi <- import("data/processed/NDI.NYC.2086t.csv")
+svi <- import("data/raw/svi.csv")
+
+ndi_clean <- ndi %>% dplyr::mutate(Tract_FIPS = GEOID %>% as.character() %>% str_pad(11,side="left",pad="0")) %>% dplyr::rename(ndi = NDI_score) %>% dplyr::select(Tract_FIPS, ndi) %>% 
+  dplyr::left_join(tract_nyc_county, by = "Tract_FIPS")
+svi_clean <- svi %>% dplyr::mutate(Tract_FIPS = FIPS %>% as.character() %>% str_pad(11,side="left",pad="0")) %>% dplyr::rename(svi = RPL_THEMES) %>% dplyr::select(Tract_FIPS, svi) %>% 
+  dplyr::filter(svi != -999) %>% 
+  dplyr::left_join(tract_nyc_county, by = "Tract_FIPS") %>% 
+  dplyr::inner_join(tract_exclusions_list_id %>% dplyr::transmute(Tract_FIPS = SID), by = "Tract_FIPS")
+
+## IMPORT: Race/ethnicity sensitivity analysis
+tract_toxpi_pre_raceeth_no_olap <- import('data/processed/toxpi/nvi_toxpi_raceeth_no_olap_results.csv')
+tract_toxpi_pre_raceeth_olap <- import('data/processed/toxpi/nvi_toxpi_raceeth_olap_results.csv')
+tract_toxpi_pre_raceeth_hsub <- import('data/processed/toxpi/nvi_toxpi_raceeth_hsub_results.csv')
+
+```
+
+### Create spatial objects
+```{r}
+# Spatial: crs = "+init=epsg:2263"
+  # Included
+tract_final_spatial <- tract_nyc_spatial %>% 
+  dplyr::inner_join(tract_final %>% dplyr::mutate(Tract_FIPS = as.character(Tract_FIPS) %>% trimws()), by = "Tract_FIPS") # Checked: did not exclude any tracts, 8/11
+  # Excluded
+tract_exclude_spatial <- tract_nyc_spatial %>% 
+  dplyr::anti_join(tract_final %>% dplyr::mutate(Tract_FIPS = as.character(Tract_FIPS) %>% trimws()), by = "Tract_FIPS") 
+```
+
+
+# FIGURES
+## FIGURE 1: Domains and subdomains
+```{r mapping, include=FALSE}
+#### CREATE: Functions to create maps
+gen_fig1_main <- function(dfin, dfexcl, fill_var, fill_color, fill_label){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    theme_minimal() + # Alt: ggthemes::theme_map()
+    ggsn::scalebar(data = dfin, dist = 20, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "bottomright") + # scale bar
+    ggsn::north(data = dfin, location = "topleft", symbol = 10, scale = 0.10) + # north arrow, symbol = 16, scale = 0.17
+        # Alt: ggspatial::annotation_north_arrow(pad_x = unit(2.5, "cm"), pad_y = unit(-1.75, "cm")) +
+        # Alt: ggspatial::annotation_scale(plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")) #bgcolor("lightcyan") + #snow2 
+    labs(fill = fill_label) + 
+    scale_fill_gradient(low = "whitesmoke", high = fill_color) + # na.value = "gray30"
+    theme(legend.title = element_text(face = "bold", size = 15), # plot.title = element_text(hjust = 0.75, face = "bold", size = 15),
+          legend.text = element_text(size = 12),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "right",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank()) # plot.caption = element_text(hjust = 0, size = 10, face = "italic"), legend.position = c(1,0.5), plot.background = element_rect(fill = "lightcyan")
+  return(plot_choro)
+}
+gen_fig1_part <- function(dfin, dfexcl, fill_var, fill_color, fill_label, fill_label_just, fill_increment){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    theme_minimal() + 
+    scale_fill_gradient(low = "whitesmoke", high = fill_color, breaks = seq(0, 1, fill_increment)) + 
+    labs(fill = fill_label) + 
+    theme(legend.title = element_text(face = "bold", size = 14, vjust = fill_label_just),  # vertically center legend with its label - does not work well
+          legend.text = element_text(size = 10),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "right",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank())
+  return(plot_choro)
+}
+
+### CREATE: Maps
+  # Overall Index
+fig1_toxpi <- gen_fig1_main(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, fill_var = "nvi", fill_color = "#D55E00", fill_label = "Neighborhood\nVulnerability Index")
+  # Domain Scores
+fig1_demo <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, fill_var = "score_demo", fill_color = "#0072B2", fill_label = "Demographics Score", fill_label_just = 0.5, fill_increment = 0.1)
+fig1_econ <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, fill_var = "score_economic", fill_color = "#009E73", fill_label = "Economic\nIndicators Score", fill_label_just = 0.5, fill_increment = 0.2)
+fig1_resd <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, fill_var = "score_residential", fill_color = "#E69F00", fill_label = "Residential Density\nand Characteristics\nScore", fill_label_just = 4, fill_increment = 0.2)
+fig1_hlth <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, fill_var = "score_healthstatus", fill_color = "#CC79A7", fill_label = "Health Behavior,\nOutcomes,\nPrevention Practices,\nand Access Score", fill_label_just = 4, fill_increment = 0.2)
+## MERGE: Maps
+  # Alt: gridExtra::grid.arrange(fig1_toxpi, fig1_demo, fig1_econ, fig1_resd, fig1_hlth, ncol = 4, nrow = 2, layout_matrix = rbind(c(1,1,2,3), c(1,1,4,5))) 
+  # Ref: https://www.datanovia.com/en/lessons/combine-multiple-ggplots-into-a-figure/
+fig1_part1 <- ggarrange(fig1_toxpi, fig1_demo, nrow = 2, labels = c("A","B"), align = "v", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm"))
+fig1_part2 <- ggarrange(fig1_econ, fig1_resd, nrow = 2, labels = c("C","D"), align = "v", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm"))
+fig1_part3 <- ggarrange(fig1_hlth, labels = "E", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm"))
+
+fig1_part2 <- ggarrange(fig1_econ, ggarrange(fig1_resd, labels = "D", font.label = list(size = 25)), nrow = 2, labels = "C", align = "v", font.label = list(size = 25)) +
+  theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm"))
+
+
+## EXPORT
+fig1_part1
+ggsave('figs/fig1_part1.png', width = 10, height = 15) # pixels: 1200 x 900, width = 15, height = 12
+fig1_part2
+ggsave('figs/fig1_part2.png', width = 10, height = 15) 
+fig1_part3
+ggsave('figs/fig1_part3.png', width = 10, height = 8) 
+
+
+```
+
+## FIGURE 2. MAP: NVI, NDI, SVI
+```{r}
+#### CREATE: Functions to create maps
+gen_fig2_main <- function(dfin, dfexcl, fill_var, fill_color, fill_label){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    theme_minimal() + # Alt: ggthemes::theme_map()
+    ggsn::scalebar(data = dfin, dist = 20, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "topleft") + # scale bar, bottomright
+    ggsn::north(data = dfin, location = "bottomright", symbol = 10, scale = 0.10) + # north arrow, symbol = 16, scale = 0.17, topleft
+        # Alt: ggspatial::annotation_north_arrow(pad_x = unit(2.5, "cm"), pad_y = unit(-1.75, "cm")) +
+        # Alt: ggspatial::annotation_scale(plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")) #bgcolor("lightcyan") + #snow2 
+    labs(fill = fill_label) + 
+    #scale_fill_gradient(low = "whitesmoke", high = fill_color) + # na.value = "gray30"
+    scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) + # cannot seem to get title to center: title.hjust = 0.5
+    theme(legend.title = element_text(face = "bold", size = 15), # plot.title = element_text(hjust = 0.75, face = "bold", size = 15),
+          legend.text = element_text(size = 12),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "bottom",
+          legend.box = "vertical",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank())  # plot.caption = element_text(hjust = 0, size = 10, face = "italic"), legend.position = c(1,0.5), plot.background = element_rect(fill = "lightcyan")
+    #guides(size = guide_legend(title.position = "top", title.hjust = 0.5))
+  return(plot_choro)
+}
+gen_fig2_part <- function(dfin, dfexcl, fill_var, fill_color, fill_label, fill_label_just, fill_increment){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    theme_minimal() + 
+    scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) +
+    labs(fill = fill_label) + 
+    theme(legend.title = element_text(face = "bold", size = 14, vjust = fill_label_just),  # vertically center legend with its label - does not work well
+          legend.text = element_text(size = 10),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "bottom",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank()) 
+  return(plot_choro)
+}
+
+### PREP DATA
+fig2_sf <- tract_final_spatial %>% 
+  dplyr::select(Tract_FIPS, nvi) %>% 
+  dplyr::left_join(ndi_clean, by = "Tract_FIPS") %>% 
+  dplyr::left_join(svi_clean, by = "Tract_FIPS") %>% 
+  dplyr::mutate(nvi_q = ntile(nvi, 4) %>% as.factor(),
+                ndi_q = ntile(ndi, 4) %>% as.factor(),
+                svi_q = ntile(svi, 4) %>% as.factor()) 
+
+### CREATE: Maps for NVI, NDI, SVI
+red_fill <- c('#F6DECC', '#E59E66', '#d55e00', '#954100') # "#fee5d9","#fcae91","#fb6a4a","#cb181d"
+fig2_toxpi <- gen_fig2_main(dfin = fig2_sf, dfexcl = tract_exclude_spatial, fill_var = "nvi_q", fill_color = red_fill, fill_label = "Neighborhood Vulnerability Index Quartile") 
+fig2_ndi <- gen_fig2_part(dfin = fig2_sf, dfexcl = tract_exclude_spatial, fill_var = "ndi_q", fill_color =  red_fill, fill_label = "Neighborhood Deprivation Index Quartile", fill_label_just = 0.5, fill_increment = 0.1) 
+fig2_svi <- gen_fig2_part(dfin = fig2_sf, dfexcl = tract_exclude_spatial, fill_var = "svi_q", fill_color =  red_fill, fill_label = "Social Vulnerability Index Quartile", fill_label_just = 0.5, fill_increment = 0.2) 
+## MERGE: Maps
+fig2 <- ggarrange(fig2_toxpi, fig2_ndi, fig2_svi, ncol = 3, labels = c("A","B","C")) + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"))
+# fig2 <- ggarrange(fig2_toxpi, ggarrange(fig2_ndi, fig2_svi, nrow = 2, labels = "B", font.label = list(size = 25)), ncol = 2, labels = "A", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 2, l = 0, "cm"))
+fig2
+ggsave('figs/fig2.png', width = 13, height = 6) # pixels: 1200 x 900 width = 13, height = 12
+
+```
+
+## FIGURE 3 / SUPPLEMENTAL FIGURE 2. Scatter plots
+```{r}
+### CREATE: Function to generate scatterplots
+  # Ref, stat_cor: https://www.rdocumentation.org/packages/ggpubr/versions/0.4.0/topics/stat_cor
+gen_fig3_scatterplot <- function(datain, var, var_label, var_breaks){
+  plot_scatter <- ggplot(datain, aes(x = nvi, y = !!sym(var), color = nvi_domain)) +
+    geom_point(alpha = 0.5, size = 0.8) + #  geom_smooth(method = lm) +
+    ggpubr::stat_cor(aes(label = ..r.label..), method = "spearman", label.x.npc = 0.6, label.y.npc = 0.25, p.accuracy = 0.001, size = 6, color = "black") + # "~`,`~" # label.x.npc = 0.7, size = 4
+    # ggpubr::stat_cor(aes(label = ..p.label..), method = "spearman", label.x.npc = 0.7, label.y.npc = 0.1, p.accuracy = 0.001, size = 4, color = "black") + # "~`,`~"
+    facet_grid(county ~ nvi_domain) + 
+    scale_color_manual(values = c("#D55E00","#0072B2","#009E73","#E69F00","#CC79A7")) +
+    scale_x_continuous(breaks = seq(-1, 0.8, 0.2), minor_breaks = seq(-1, 0.9, 0.1)) +
+    scale_y_continuous(breaks = seq(-2, 6, var_breaks), minor_breaks = seq(-2, 6, var_breaks/2)) +
+    theme_bw() +
+    labs(x = "Neighborhood Vulnerability Index", y = var_label) +
+    theme(legend.position = "none",
+          axis.title.x = element_text(size = 20, margin = margin(t = 10)),
+          axis.title.y = element_text(size = 20, margin = margin(r = 10)),
+          axis.text.x = element_text(size = 13),
+          axis.text.y = element_text(size = 13),
+          strip.text.x = element_text(size = 15),
+          strip.text.y = element_text(size = 15))
+  return(plot_scatter)
+}
+
+### DATA PREP
+fig3_nvi_df <- tract_final %>% 
+  dplyr::select(Tract_FIPS, county, nvi, score_demo, score_economic, score_residential, score_healthstatus) %>% 
+  tidyr::gather(key = nvi_domain, value = nvi, nvi, score_demo, score_economic, score_residential, score_healthstatus) %>% 
+  dplyr::mutate(nvi_domain = case_when(nvi_domain == "nvi" ~ "Overall:\nNeighborhood\nVulnerability Index",
+                                       nvi_domain == "score_demo" ~ "Domain:\nDemographic Score",
+                                       nvi_domain == "score_economic" ~ "Domain:\nEconomic Score",
+                                       nvi_domain == "score_residential" ~ "Domain:\nResidential Score",
+                                       nvi_domain == "score_healthstatus" ~ "Domain:\nHealth Status Score") %>% 
+                                       factor(levels = c("Overall:\nNeighborhood\nVulnerability Index","Domain:\nDemographic Score","Domain:\nEconomic Score","Domain:\nResidential Score","Domain:\nHealth Status Score")))
+### MERGE with NDI/SVI data
+fig3_df <- fig3_nvi_df %>%
+  dplyr::mutate(Tract_FIPS = as.character(Tract_FIPS)) %>% 
+  dplyr::left_join(ndi_clean %>% dplyr::select(-county), by = "Tract_FIPS") %>% 
+  dplyr::left_join(svi_clean %>% dplyr::select(-county), by = "Tract_FIPS")
+### CREATE: Plots
+fig3_ndi <- gen_fig3_scatterplot(datain = fig3_df, var = "ndi", var_label = "Neighborhood Deprivation Index", var_breaks = 2) # NDI
+figs2_svi <- gen_fig3_scatterplot(datain = fig3_df, var = "svi", var_label = "Social Vulnerability Index", var_breaks = 0.2) # SVI
+### EXPORT: Plots
+fig3_ndi
+ggsave('figs/fig3.png', width = 15, height = 12)
+figs2_svi
+ggsave('figs/figs2.png', width = 15, height = 12)
+
+
+```
+
+## FIGURE 4 - PART B (CLUSTER MAP + CLUSTER PROFILE)
+```{r}
+## CHECK WHICH CLUSTERS TRACTS WERE IN
+tract_final %>% filter(Tract_FIPS %in% c('36047051900','36081067100')) %>% select(Tract_FIPS, county, nvi, nvi_cluster, score_demo, score_economic, score_residential, score_healthstatus) # Queens tract: 4, Kings tract: 6
+#View where on map: https://popfactfinder.planning.nyc.gov/#11.95/40.72281/-73.95688
+# library(leaflet)
+# tract_final_spatial_tempproj <- st_transform(tract_final_spatial, crs = '+proj=longlat +datum=WGS84')
+# tract_final_spatial_tempproj_subset <- tract_final_spatial_tempproj %>% filter(Tract_FIPS %in% c('36047051900','36081067100'))
+# leaflet() %>%
+#   addTiles() %>%
+#   addPolygons(data = tract_final_spatial_tempproj, color = "blue", label = tract_final$Tract_FIPS,
+#               popup = c(paste0('GEOID: ', tract_final$Tract_FIPS))) %>%
+#   addPolygons(data = tract_final_spatial_tempproj %>% filter(Tract_FIPS %in% c('36047051900','36081067100')), color = "red", label = tract_final_spatial_tempproj$Tract_FIPS,
+#               popup = c(paste0('GEOID: ', tract_final$Tract_FIPS)))
+
+## CREATE: PART 1 - CLUSTER PROFILES
+# Colors
+# Explore color options
+  # colorBlindness::displayAllColors(paletteMartin, color="white")
+  # colors_colorblindsafe <- paletteMartin[c(5, 6, 9, 11, 14, 15)] %>% unname()
+colors_colorblindsafe <- c('#ffff6d','#ffb6db','#24ff24','#6db6ff','#920000','#490092') 
+
+# Alt: colors_colorblindsafe <- safeColors[2:7] %>% unname()
+# Ref: https://www.r-graph-gallery.com/circular-barplot.html
+nvi_cat_levels <- c('Demographics', 'Economic', 'Residential', 'Health Status')
+# Data Prep
+fig4b_part1_df <- tract_final %>% 
+  dplyr::group_by(nvi_cluster) %>% 
+  dplyr::summarize(n_obs = n(),
+                   mean_nvi = mean(nvi),
+                   q1_nvi = quantile(nvi, 0.25),
+                   q3_nvi = quantile(nvi, 0.75),
+                   iqr_nvi = paste0(round(q1_nvi, 2), "-", round(q3_nvi,2)),
+                   mean_demo_score = mean(score_demo),
+                   mean_economic_score = mean(score_economic),
+                   mean_residential_score = mean(score_residential),
+                   mean_healthstatus_score = mean(score_healthstatus)) %>% 
+  tidyr::gather(nvi_cat_prelim, mean, mean_demo_score:mean_healthstatus_score) %>% 
+  dplyr::mutate(nvi_cat = case_when(nvi_cat_prelim == 'mean_demo_score'         ~ nvi_cat_levels[1],
+                                    nvi_cat_prelim == 'mean_economic_score'     ~ nvi_cat_levels[2],
+                                    nvi_cat_prelim == 'mean_residential_score'  ~ nvi_cat_levels[3],
+                                    nvi_cat_prelim == 'mean_healthstatus_score' ~ nvi_cat_levels[4]) %>% factor(nvi_cat_levels),
+                nvi_cluster_label = paste0("Cluster ", nvi_cluster, " (n = ", n_obs, ",\nMean NVI = ", round(mean_nvi,2), ")"))
+# Plotting
+fig4b_part1_prelim <- ggplot(fig4b_part1_df, aes(x = nvi_cat, y = mean, fill = nvi_cluster_label, pattern = nvi_cat)) +
+  ggpattern::geom_bar_pattern(stat = "identity", color = "black") +
+  geom_text(aes(label = round(mean, 2), y = mean + 0.25), size = 4) + # y = mean + 0.5
+  coord_polar(start = (3*pi)/2, direction = -1, clip = "off") +
+  ylim(-0.2, 1.1) + #1.1
+  scale_fill_manual(values = colors_colorblindsafe, labels = c("1","2","3","4","5","6")) +
+  ggpattern::scale_pattern_manual(values = c("circle","stripe","crosshatch","none")) +
+  facet_wrap(. ~ nvi_cluster_label, nrow = 2) +
+  labs(fill = "Neighborhood\nVulnerability Index\nCluster", pattern = "Domain Score") +
+  theme_minimal() +
+  guides(fill = guide_legend(override.aes = list(pattern = "none"), nrow = 2, title.position = "top", title.hjust = 0.5, order = 1), # fill = FALSE 
+         pattern = guide_legend(override.aes = list(fill = "white"), nrow = 6, title.position = "top", title.hjust = 0.5, order = 2)) +
+  theme(legend.position = "right",
+        legend.title = element_text(face = "bold"),
+        legend.box = 'vertical',
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 12, face = "bold"),
+        panel.grid = element_blank(),
+        plot.margin = unit(c(t = 0, r = 0, b = 0, l = 0), "cm"),
+        panel.spacing = unit(0, "lines")) # strip.background.y = element_rect("transparent")
+fig4b_part1_plot_build <- ggplot_build(fig4b_part1_prelim)
+for(i in 1:6){
+  fig4b_part1_plot_build[["layout"]][["panel_params"]][[i]][["r.range"]][2] <- 0.45
+}
+fig4b_part1 <- ggplot_gtable(fig4b_part1_plot_build)
+
+
+## CREATE: PART 2 - CLUSTER MAP
+gen_fig4b_part2 <- function(dfin, dfexcl, fill_var, fill_color, fill_label, fill_increment){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray90", fill = "gray90") + 
+    theme_minimal() + 
+    scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) +
+    labs(fill = fill_label) + 
+    # guides(fill = guide_legend(nrow = 1, title.position = "top", title.hjust = 0.5)) +
+    theme(legend.position = "none", # legend.title = element_text(face = "bold", size = 12), legend.text = element_text(size = 9), legend.spacing.x = unit(0.5, 'cm'), 
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank(),
+          plot.margin = unit(c(t = 0, r = 0, b = 0, l = 0), "cm")) 
+  return(plot_choro)
+}
+fig4b_part2 <- gen_fig4b_part2(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, fill_var = "nvi_cluster", fill_color = colors_colorblindsafe, fill_label = "Neighborhood Vulnerability Index Cluster") 
+
+## COMBINED PLOT
+fig4b <- ggarrange(fig4b_part1, ggarrange(fig4b_part2, ggplot() + theme_void(), ncol = 2), nrow = 2) + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"))
+fig4b
+# EXPORT
+ggsave('figs/fig4_partb.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
+
+# View average NVI domains scores by cluster for text
+fig4b_part1_df %>% distinct(nvi_cluster, mean_nvi, iqr_nvi)
+tract_final %>% count(nvi_cluster, nvi_cluster_orig)
+
+```
+
+
+
+## SUPPLEMENTAL FIGURE 1. Box plots
+```{r}
+# note changed colors for overall and residential
+figs1_df <- tract_final %>% 
+  dplyr::select(Tract_FIPS, county, nvi, score_demo, score_economic, score_residential, score_healthstatus) %>% 
+  tidyr::gather(key = index_type, value = index, nvi, score_demo, score_economic, score_residential, score_healthstatus) %>% 
+  dplyr::mutate(index_type = case_when(index_type == "nvi" ~ "Overall:\nNeighborhood\nVulnerability Index",
+                                       index_type == "score_demo" ~ "Domain:\nDemographic\nScore",
+                                       index_type == "score_economic" ~ "Domain:\nEconomic\nScore",
+                                       index_type == "score_residential" ~ "Domain:\nResidential\nScore",
+                                       index_type == "score_healthstatus" ~ "Domain:\nHealth Status\nScore") %>% 
+                                       factor(levels = c("Overall:\nNeighborhood\nVulnerability Index","Domain:\nDemographic\nScore","Domain:\nEconomic\nScore","Domain:\nResidential\nScore","Domain:\nHealth Status\nScore",
+                                                         'Neighborhood Deprivation Index','Social Vulnerability Index')),
+                part = 'NVI') %>% 
+  rbind(ndi_clean %>% dplyr::mutate(index_type = 'Neighborhood Deprivation Index', part = 'NDI') %>% rename(index = ndi),
+        svi_clean %>% dplyr::mutate(index_type = 'Social Vulnerability Index', part = 'SVI') %>% rename(index = svi)) 
+### CREATE: Plots
+  # NVI
+figs1a <- ggplot(figs1_df %>% filter(part == 'NVI'), aes(y = county, x = index, fill = index_type)) +
+  geom_boxplot() +
+  facet_grid(index_type ~ ., scale = "free") +
+  # labs(x = "Index", y = "County") +
+  labs(title = "Neighborhood Vulnerability Index") +
+  scale_fill_manual(values = c("#D55E00","#0072B2","#009E73","#E69F00","#CC79A7")) +
+  theme_bw() +
+  theme(legend.position = "none", axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), strip.text.y = element_text(size = 20), plot.title = element_text(face = "bold", hjust = 0.5, size = 20))
+  # NDI
+figs1b <- ggplot(figs1_df %>% filter(part == 'NDI'), aes(y = county, x = index, fill = index_type)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#D55E00")) +
+  labs(title = "Neighborhood Deprivation Index") +
+  theme_bw() +
+  theme(legend.position = "none", axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), plot.title = element_text(face = "bold", hjust = 0.5, size = 20))
+  # SVI
+figs1c <- ggplot(figs1_df %>% filter(part == 'SVI'), aes(y = county, x = index, fill = index_type)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#D55E00")) +
+  labs(title = "Social Vulnerability Index") +
+  theme_bw() +
+  theme(legend.position = "none", axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), plot.title = element_text(face = "bold", hjust = 0.5, size = 20))
+### EXPORT: Plots
+# fig3_labs <- c("A","B","C") # c("Neighborhood Vulnerability Index","Neighborhood Deprivation Index","Social Vulnerability Index")
+figs1 <- ggarrange(figs1a, figs1b, figs1c, nrow = 3, font.label = list(size = 25), align = "v", heights = c(4,1,1)) #labels = fig3_labs,
+annotate_figure(figs1,left = text_grob("County", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
+ggsave('figs/figs1.png', width = 15, height = 16)
+```
+
+### SUPPLEMENTAL FIGURE 3 Sensitivity analysis: Race/ethnicity
+```{r}
+### Clean data 
+# CREATE: Function
+clean_toxpi_sa <- function(datain, datacounty){
+  dataout <- datain %>% 
+    dplyr::rename(Tract_FIPS = Source, nvi = `ToxPi Score`) %>% 
+    dplyr::mutate(Tract_FIPS = as.character(Tract_FIPS) %>% trimws()) %>% 
+    dplyr::select(-c(`HClust Group`, `KMeans Group`, Name)) %>% 
+    # Demographics
+    dplyr::rename_at(vars(starts_with('DemographicsAge')), funs(paste0('score_demo_age'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsFemaleLed')), funs(paste0('score_demo_femaleled'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsRaceEth!')), funs(paste0('score_demo_raceeth'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsImmigration')), funs(paste0('score_demo_immigration'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsDisability')), funs(paste0('score_demo_disability'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsSingleParent')), funs(paste0('score_demo_singleparent'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsMobility')), funs(paste0('score_demo_mobility'))) %>% 
+    dplyr::rename_at(vars(starts_with('DemographicsLiveAlone')), funs(paste0('score_demo_livealone'))) %>% 
+    # Economic
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsIncomePoverty')), funs(paste0('score_economic_incomepoverty'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsServiceManualJobs')), funs(paste0('score_economic_servicemanual'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsGini')), funs(paste0('score_economic_gini'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsEmployment')), funs(paste0('score_economic_employment'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsEducation')), funs(paste0('score_economic_education'))) %>% 
+    dplyr::rename_at(vars(starts_with('Economic IndicatorsVehicleAvail')), funs(paste0('score_economic_vehicleavail'))) %>% 
+    # Residential
+    dplyr::rename_at(vars(starts_with('Residential DensityPopDensity')), funs(paste0('score_residential_popdensity'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityGroupQuarters')), funs(paste0('score_residential_groupquarters'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityOccPerRoom')), funs(paste0('score_residential_occperroom'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityStrAge')), funs(paste0('score_residential_structage'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityStrAttached')), funs(paste0('score_residential_structattach'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityMove1Yr')), funs(paste0('score_residential_move1yr'))) %>% 
+    dplyr::rename_at(vars(starts_with('Residential DensityVacancy')), funs(paste0('score_residential_vacancy'))) %>% 
+    # Health status
+    dplyr::rename_at(vars(starts_with('Health StatusLifestyle')), funs(paste0('score_healthstatus_lifestyle'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusCondition')), funs(paste0('score_healthstatus_condition'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusPreventive')), funs(paste0('score_healthstatus_preventive'))) %>% 
+    dplyr::rename_at(vars(starts_with('Health StatusLackInsurance')), funs(paste0('score_healthstatus_lackinsurance'))) %>% 
+    dplyr::mutate(score_economic = (score_economic_incomepoverty + score_economic_servicemanual + score_economic_gini + score_economic_employment + score_economic_education + score_economic_vehicleavail)/6,
+                  score_residential = (score_residential_popdensity + score_residential_groupquarters + score_residential_occperroom + score_residential_structage + score_residential_structattach + score_residential_move1yr + score_residential_vacancy)/7,
+                  score_healthstatus = (score_healthstatus_lifestyle + score_healthstatus_condition + score_healthstatus_preventive + score_healthstatus_lackinsurance)/4) %>% 
+    dplyr::left_join(datacounty, by = "Tract_FIPS")
+  return(dataout)
+}
+# DATA CLEANING
+  # Race/eth: no overlapping
+tract_toxpi_raceeth_no_olap_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_no_olap, tract_nyc_county) %>% 
+  dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/8) 
+  # Race/eth: overlapping
+tract_toxpi_raceeth_olap_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_olap, tract_nyc_county) %>% 
+  dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/8) 
+  # Race/eth + Hisp
+tract_toxpi_raceeth_hsub_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_hsub, tract_nyc_county) %>% 
+  dplyr::rename_at(vars(starts_with('DemographicsRaceEthHisp')), funs(paste0('score_demo_raceeth_hisp'))) %>% 
+  dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_raceeth_hisp + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/9)
+
+##### PLOTS
+### BOXPLOT
+# PREP data
+figs3_df <- rbind(tract_final %>% dplyr::select(nvi, score_demo, county) %>% dplyr::mutate(index_type = "Main"),
+               tract_toxpi_raceeth_no_olap_df %>% dplyr::select(nvi, score_demo, county) %>% dplyr::mutate(index_type = "Non-Overlapping Race/Ethnicity\nFeatures"),
+               tract_toxpi_raceeth_olap_df %>% dplyr::select(nvi, score_demo, county) %>% dplyr::mutate(index_type = "Overlapping Race/Ethnicity\nCategories"),
+               tract_toxpi_raceeth_hsub_df %>% dplyr::select(nvi, score_demo, county) %>% dplyr::mutate(index_type = "Hispanic Separate")) %>% 
+  dplyr::mutate(all = "All Counties", index_type = factor(index_type, levels = c("Main",
+                                                           "Non-Overlapping Race/Ethnicity\nFeatures",
+                                                           "Overlapping Race/Ethnicity\nCategories",
+                                                           "Hispanic Separate")))
+figs3_sub_df <- rbind(tract_toxpi_raceeth_no_olap_df %>% dplyr::select(nvi, score_demo_raceeth, county) %>% dplyr::mutate(index_type = "Non-Overlapping Race/Ethnicity\nFeatures"),
+                      tract_toxpi_raceeth_olap_df %>% dplyr::select(nvi, score_demo_raceeth, county) %>% dplyr::mutate(index_type = "Overlapping Race/Ethnicity\nCategories\nRace/Ethnicity Subdomain"),
+                      tract_toxpi_raceeth_hsub_df %>% dplyr::select(nvi, score_demo_raceeth, county) %>% dplyr::mutate(index_type = "Hispanic Separate\nRace Subdomain"),
+                      tract_toxpi_raceeth_hsub_df %>% dplyr::select(nvi, score_demo_raceeth_hisp, county) %>% dplyr::rename(score_demo_raceeth = score_demo_raceeth_hisp) %>% dplyr::mutate(index_type = "Hispanic Separate\nHispanic Subdomain")) %>% 
+  dplyr::mutate(all = "All Counties", index_type = factor(index_type, levels = c("Non-Overlapping Race/Ethnicity\nFeatures",
+                                                           "Overlapping Race/Ethnicity\nCategories\nRace/Ethnicity Subdomain",
+                                                           "Hispanic Separate\nRace Subdomain",
+                                                           "Hispanic Separate\nHispanic Subdomain")))
+
+
+# CREATE: Plots
+  # NVI
+figs3a <- ggplot(figs3_df, aes(x = nvi, fill = index_type)) +
+  geom_boxplot(aes(y = county)) +
+  geom_boxplot(aes(y = all)) +
+  scale_y_discrete(limits = rev) +
+  geom_hline(yintercept = 5.5, color = "gray20", linetype = "dashed") +
+  labs(title = "Overall NVI", fill = "NVI:\nRace/Ethnicity Categorization") +
+  scale_fill_manual(values = c("#D55E00", "gray40", "gray60", "gray80")) + # limits = rev
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme_bw() +
+  theme(axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), panel.grid.major.y = element_blank(), strip.text.y = element_text(size = 20), plot.title = element_text(face = "bold", hjust = 0.5, size = 20), legend.title = element_text(size = 16), legend.text = element_text(size = 14))
+  # Domain: Demographic 
+figs3b <- ggplot(figs3_df, aes(x = score_demo, fill = index_type)) +
+  geom_boxplot(aes(y = county)) +
+  geom_boxplot(aes(y = all)) +
+  scale_y_discrete(limits = rev) +
+  geom_hline(yintercept = 5.5, color = "gray20", linetype = "dashed") +
+  labs(title = "Domain: Demographic Score", fill = "Demographic Domain:\nRace/Ethnicity Categorization") +
+  scale_fill_manual(values = c("#0072B2", "gray40", "gray60", "gray80")) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme_bw() +
+  theme(axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), panel.grid.major.y = element_blank(), plot.title = element_text(face = "bold", hjust = 0.5, size = 20), legend.title = element_text(size = 16), legend.text = element_text(size = 14))
+  # Subdomain: Race/ethnicity
+figs3c <- ggplot(figs3_sub_df, aes(x = score_demo_raceeth, fill = index_type)) +
+  geom_boxplot(aes(y = county)) +
+  geom_boxplot(aes(y = all)) +
+  scale_y_discrete(limits = rev) +
+  geom_hline(yintercept = 5.5, color = "gray20", linetype = "dashed") +
+  labs(title = "Subdomain: Race/Ethnicity Score", fill = "Race/Ethnicity Subdomain:\nRace/Ethnicity Categorization") +
+  scale_fill_manual(values = c("gray40", "gray60", "gray80", "gray80")) +
+  guides(fill = guide_legend(reverse = TRUE)) +
+  theme_bw() +
+  theme(axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), panel.grid.major.y = element_blank(), plot.title = element_text(face = "bold", hjust = 0.5, size = 20), legend.title = element_text(size = 16), legend.text = element_text(size = 14))
+### MERGE AND EXPORT: Plots
+figs3 <- ggarrange(figs3a, figs3b, figs3c, nrow = 3, font.label = list(size = 25), align = "v", heights = c(1,1,1)) 
+annotate_figure(figs3,left = text_grob("County", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
+ggsave('figs/figs3.png', width = 15, height = 20)
+
+```
+
+
+### Descriptives (for text)
+```{r}
+# Prep data
+text_df <- tract_final %>% 
+  dplyr::left_join(ndi_clean, by = "Tract_FIPS") %>% 
+  dplyr::left_join(svi_clean, by = "Tract_FIPS")
+
+
+# Function to generate summary stats
+gen_summary <- function(dfin, var, var_label){
+  var <- sym(var)
+  overall <- dfin %>% 
+    dplyr::summarize(mean = mean(!!var), sd = sd(!!var), median = median(!!var), min = min(!!var), max = max(!!var), q1 = quantile(!!var, probs = 0.25), q3 = quantile(!!var, probs = 0.75), iqr = paste0(q1 %>% round(2) %>% format(nsmall = 2),"-",q3 %>% round(2) %>% format(nsmall = 2)), median_iqr = paste0(median %>% round(2) %>% format(nsmall = 2)," (IQR = ",iqr,")"), median_iqr2 = paste0(median %>% round(2) %>% format(nsmall = 2),", IQR = ",iqr), median_iqr3 = paste0("median = ", median_iqr2)) %>% 
+    dplyr::mutate(county = "Overall")
+  bycounty <- dfin %>% 
+    dplyr::group_by(county) %>% 
+    dplyr::summarize(mean = mean(!!var), sd = sd(!!var), median = median(!!var), min = min(!!var), max = max(!!var), q1 = quantile(!!var, probs = 0.25), q3 = quantile(!!var, probs = 0.75), iqr = paste0(q1 %>% round(2) %>% format(nsmall = 2),"-",q3 %>% round(2) %>% format(nsmall = 2)), median_iqr = paste0(median %>% round(2) %>% format(nsmall = 2)," (IQR = ",iqr,")"), median_iqr2 = paste0(median %>% round(2) %>% format(nsmall = 2),", IQR = ",iqr), median_iqr3 = paste0("median = ", median_iqr2)) %>% 
+    dplyr::mutate(county = paste0("   ", county))
+  combined <- rbind(overall, bycounty) %>% 
+    dplyr::mutate(score = var_label) %>% 
+    dplyr::relocate(score, county, mean, sd, median, iqr, min, max, median_iqr, median_iqr2, median_iqr3, .before = mean)
+  return(combined)
+}
+
+# Generate summary stats
+text_summary <- rbind(gen_summary(text_df, "nvi", "Neighborhood Vulnerability Index (NVI)")
+                     ,gen_summary(text_df, "ndi", "Neighborhood Deprivation Index (NDI)")
+                     ,gen_summary(text_df, "svi", "Social Vulnerability Index (SVI)")
+                     ,gen_summary(text_df, "score_demo", "NVI Domain: Demographics")
+                     ,gen_summary(text_df, "score_economic", "NVI Domain: Economic Indicators")
+                     ,gen_summary(text_df, "score_residential", "NVI Domain: Residential Characteristics")
+                     ,gen_summary(text_df, "score_healthstatus", "NVI Domain: Health Status"))
+text_summary %>% head()
+
+# text_summary %>% View()
+export(text_summary, 'text_summary.xlsx')
+
+# OVERALL CORRELATIONS
+cor.test(text_df$nvi, text_df$ndi, method = "spearman")
+cor.test(text_df$nvi, text_df$svi, method = "spearman")
+
+
+```
+
