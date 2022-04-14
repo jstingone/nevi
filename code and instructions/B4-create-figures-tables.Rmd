@@ -1,5 +1,5 @@
 ---
-title: "Describing the NEVI and Comparison the the NEVI to the NDI/SVI: Results and Figures"
+title: "Neighborhood Environmental Vulnerability Index, 2019: Create Figures and Tables"
 author: 
 - "Stephen P. Uong" 
 - "Contributors: Jiayi Zhou, Jeanette A. Stingone"
@@ -10,17 +10,18 @@ output:
     toc_float: true
 ---
 
-We developed a Neighborhood Environmental Vulnerability Index (NEVI) to measure vulnerability to environmental pollution. We applied the Toxicological Prioritization Index (ToxPi) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
+Below are steps to create figures and tables for the NEVI.
 
 In this document, we have included code we used to generate results and figures that we used when evaluating the NEVI and comparing the NEVI to the Neighborhood Deprivation Index (NDI)/ Social Vulnerability Index (SVI).
 
 ### 1. Setup
-We set the working directory to one folder up from the RMarkdown file.
+Set the working directory to one folder up from the RMarkdown file for later data export.
 ```{r, setup}
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
 ### 2. Loading Libraries
+Load the following required libraries.
 ```{r, libraries}
 library(tidyverse)
 library(rio)
@@ -45,7 +46,6 @@ library(ggpubr)
 library(colorBlindness)
 library(ggpattern) # Ref: https://coolbutuseless.github.io/package/ggpattern/index.html
 library(gplots) # heat map
-
 ```
 
 
@@ -178,7 +178,6 @@ fig1_part2
 ggsave('figs/fig1_part2.png', width = 10, height = 15) 
 fig1_part3
 ggsave('figs/fig1_part3.png', width = 10, height = 8) 
-
 
 ```
 
@@ -348,7 +347,7 @@ fig4_part1_df <- tract_final %>%
                 nevi_cluster_label = paste0("Cluster ", nevi_cluster, " (n = ", n_obs, ",\nMean NEVI = ", round(mean_nevi,2), ")"))
 # Plotting
 fig4_part1_prelim <- ggplot(fig4_part1_df, aes(x = nevi_cat, y = mean, fill = nevi_cluster_label, pattern = nevi_cat)) +
-  ggpattern::geom_bar_pattern(stat = "identity", color = "black") +
+  ggpattern::geom_bar_pattern(stat = "identity", color = "black") + # settings if legend patterns do not show: pattern_density = 0.3, pattern_key_scale_factor = 0.6
   geom_text(aes(label = round(mean, 2), y = mean + 0.25), size = 4) + # y = mean + 0.5
   coord_polar(start = (3*pi)/2, direction = -1, clip = "off") +
   ylim(-0.2, 1.1) + #1.1
@@ -587,34 +586,14 @@ clean_toxpi_sa <- function(datain, databorough){
   # Race/eth: no overlapping
 tract_toxpi_raceeth_no_olap_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_no_olap, tract_nyc_borough) %>% 
   dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/8) 
-  # Race/eth: overlapping
-tract_toxpi_raceeth_olap_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_olap, tract_nyc_borough) %>% 
-  dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/8) 
-  # Race/eth + Hisp
-tract_toxpi_raceeth_hsub_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_hsub, tract_nyc_borough) %>% 
-  dplyr::rename_at(vars(starts_with('DemographicsRaceEthHisp')), funs(paste0('score_demo_raceeth_hisp'))) %>% 
-  dplyr::mutate(score_demo = (score_demo_age + score_demo_femaleled + score_demo_raceeth + score_demo_raceeth_hisp + score_demo_immigration + score_demo_disability + score_demo_singleparent + score_demo_mobility + score_demo_livealone)/9)
 
 ##### PLOTS
 ### BOXPLOT
 # PREP data
-figs3_df <- rbind(tract_final %>% dplyr::select(nevi, score_demo, borough) %>% dplyr::mutate(index_type = "Main"),
-               tract_toxpi_raceeth_no_olap_df %>% dplyr::select(nevi, score_demo, borough) %>% dplyr::mutate(index_type = "Non-Overlapping Race and Ethnicity\nCategories"),
-               tract_toxpi_raceeth_olap_df %>% dplyr::select(nevi, score_demo, borough) %>% dplyr::mutate(index_type = "Overlapping Race and Ethnicity\nCategories"),
-               tract_toxpi_raceeth_hsub_df %>% dplyr::select(nevi, score_demo, borough) %>% dplyr::mutate(index_type = "Hispanic Separate")) %>% 
-  dplyr::mutate(all = "All Boroughs", index_type = factor(index_type, levels = c("Main",
-                                                           "Non-Overlapping Race and Ethnicity\nCategories",
-                                                           "Overlapping Race and Ethnicity\nCategories",
-                                                           "Hispanic Separate")))
-figs3_sub_df <- rbind(tract_toxpi_raceeth_no_olap_df %>% dplyr::select(nevi, score_demo_raceeth, borough) %>% dplyr::mutate(index_type = "Non-Overlapping Race and Ethnicity\nCategories"),
-                      tract_toxpi_raceeth_olap_df %>% dplyr::select(nevi, score_demo_raceeth, borough) %>% dplyr::mutate(index_type = "Overlapping Race and Ethnicity\nCategories\nRace and Ethnicity Subdomain"),
-                      tract_toxpi_raceeth_hsub_df %>% dplyr::select(nevi, score_demo_raceeth, borough) %>% dplyr::mutate(index_type = "Hispanic Separate\nRace Subdomain"),
-                      tract_toxpi_raceeth_hsub_df %>% dplyr::select(nevi, score_demo_raceeth_hisp, borough) %>% dplyr::rename(score_demo_raceeth = score_demo_raceeth_hisp) %>% dplyr::mutate(index_type = "Hispanic Separate\nHispanic Subdomain")) %>% 
-  dplyr::mutate(all = "All Boroughs", index_type = factor(index_type, levels = c("Non-Overlapping Race and Ethnicity\nCategories",
-                                                           "Overlapping Race and Ethnicity\nCategories\nRace and Ethnicity Subdomain",
-                                                           "Hispanic Separate\nRace Subdomain",
-                                                           "Hispanic Separate\nHispanic Subdomain")))
-
+figs3_df <- rbind(tract_final %>% dplyr::select(nevi, score_demo, borough) %>% dplyr::mutate(index_type = "Without Race and Ethnicity \nCategories (Main)"),
+               tract_toxpi_raceeth_no_olap_df %>% dplyr::select(nevi, score_demo, borough) %>% dplyr::mutate(index_type = "With Race and Ethnicity\nCategories")) %>% 
+  dplyr::mutate(all = "All Boroughs", index_type = factor(index_type, levels = c("Without Race and Ethnicity \nCategories (Main)",
+                                                           "With Race and Ethnicity\nCategories")))
 
 # CREATE: Plots
   # NEVI
@@ -639,24 +618,13 @@ figs3b <- ggplot(figs3_df, aes(x = score_demo, fill = index_type)) +
   guides(fill = guide_legend(reverse = TRUE)) +
   theme_bw() +
   theme(axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), panel.grid.major.y = element_blank(), plot.title = element_text(face = "bold", hjust = 0.5, size = 20), legend.title = element_text(size = 16), legend.text = element_text(size = 14))
-  # Subdomain: Race/ethnicity
-figs3c <- ggplot(figs3_sub_df, aes(x = score_demo_raceeth, fill = index_type)) +
-  geom_boxplot(aes(y = borough)) +
-  geom_boxplot(aes(y = all)) +
-  scale_y_discrete(limits = rev) +
-  geom_hline(yintercept = 5.5, color = "gray20", linetype = "dashed") +
-  labs(title = "Subdomain: Race and Ethnicity Score", fill = "Race and Ethnicity Subdomain:\nRace and Ethnicity Categorization") +
-  scale_fill_manual(values = c("gray40", "gray60", "gray80", "gray80")) +
-  guides(fill = guide_legend(reverse = TRUE)) +
-  theme_bw() +
-  theme(axis.title.x = element_blank(),  axis.title.y = element_blank(), axis.text.x = element_text(size = 15), axis.text.y = element_text(size = 15), panel.grid.major.y = element_blank(), plot.title = element_text(face = "bold", hjust = 0.5, size = 20), legend.title = element_text(size = 16), legend.text = element_text(size = 14))
 ### MERGE AND EXPORT: Plots
-figs3 <- ggarrange(figs3a, figs3b, figs3c, nrow = 3, font.label = list(size = 25), align = "v", heights = c(1,1,1)) +
+figs3 <- ggarrange(figs3a, figs3b, nrow = 2, font.label = list(size = 25), align = "v", heights = c(1,1,1)) +
   theme(plot.margin=unit(c(0,0,0.2,0.2),"in"),
         panel.background = element_rect(fill = "white", color = "white"))
 
 figs3_export <- annotate_figure(figs3,left = text_grob("Borough", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
-ggsave('figs/figs3.png', plot = figs3_export, width = 15, height = 20)
+ggsave('figs/figs3.png', plot = figs3_export, width = 10, height = 10)
 
 ```
 
@@ -666,14 +634,14 @@ ggsave('figs/figs3.png', plot = figs3_export, width = 15, height = 20)
 set.seed(123)
   # Get slice weights
 w_raceeth <- sapply(sapply(names(tract_toxpi_pre_raceeth_no_olap)[-c(1:5)],function(x) strsplit(x, "!")),"[",2)
-w_raceeth <- sapply(strsplit(w,split="/"),function(x) {y <- ifelse(length(x)==2,x[2],1);as.numeric(x[1])/as.numeric(y)})
+w_raceeth <- sapply(strsplit(w_raceeth,split="/"),function(x) {y <- ifelse(length(x)==2,x[2],1);as.numeric(x[1])/as.numeric(y)})
   # Generate cluster
-hc_raceeth <- hclust(dist(tract_toxpi_pre_raceeth_no_olap[,-c(1:5)]*rep(w,each=nrow(tract_toxpi_pre_raceeth_no_olap))), method="complete")
-nevi_cluster_result_raceeth <- cutree(hc, k = 6) # Cut into 6 clusters using HClusts 
+hc_raceeth <- hclust(dist(tract_toxpi_pre_raceeth_no_olap[,-c(1:5)]*rep(w_raceeth,each=nrow(tract_toxpi_pre_raceeth_no_olap))), method="complete")
+nevi_cluster_result_raceeth <- cutree(hc_raceeth, k = 6) # Cut into 6 clusters using HClusts 
   # Create data frame for cluster data
 tract_nevi_cluster_raceeth <- tract_toxpi_pre_raceeth_no_olap %>% 
   dplyr::mutate(Tract_FIPS = Source %>% as.character() %>% trimws(),
-                nevi_cluster_orig = nevi_cluster_result %>% as.factor(),
+                nevi_cluster_orig = nevi_cluster_result_raceeth %>% as.factor(),
                 nevi_cluster = case_when(
                   nevi_cluster_orig == "1" ~ "6",
                   nevi_cluster_orig == "2" ~ "5",
@@ -701,7 +669,7 @@ figs4_spatial <- tract_nyc_spatial %>%
 
 ## CREATE: PART 1 - CLUSTER PROFILES
 # Colors
-colors_colorblindsafe <- c('#ffff6d','#ffb6db','#24ff24','#6db6ff','#920000','#490092') 
+colors_colorblindsafe <- c('#ffff6d','#ffb6db','#6db6ff','#24ff24','#920000','#490092') 
 
 # Alt: colors_colorblindsafe <- safeColors[2:7] %>% unname()
 # Ref: https://www.r-graph-gallery.com/circular-barplot.html
@@ -778,7 +746,6 @@ figs4b <- ggarrange(figs4_part1, figs4_part2, nrow = 2) + theme(plot.margin = ma
 figs4b
 # EXPORT
 ggsave('figs/figs4.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
-
 
 ```
 

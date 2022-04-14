@@ -1,0 +1,222 @@
+---
+title: "generate_figures_dsi_2022"
+author: "Stephen Uong"
+date: "3/13/2022"
+output: html_document
+---
+
+### NEVI OVERALL AND DOMAIN MAPS
+```{r}
+#### CREATE: Functions to create maps
+gen_fig1_main <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label, lab_borough){
+  plot_choro <- ggplot() + 
+    # tracts
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    # tracts, excluded
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    theme_minimal() + # Alt: ggthemes::theme_map()
+        # boroughs
+    geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
+    geom_sf_label_repel(data = dfborough, aes(label = !!sym(lab_borough)), force = 0, nudge_x = c(40000, -45000, -30000, 30000, 35000), nudge_y = c(20000, 20000, 10000, -50000, -20000), seed = 1, size = 6) +
+    #ggsn::scalebar(data = dfborough, dist = 10, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "bottomright") + # scale bar
+    ggsn::north(data = dfborough, location = "topleft", symbol = 10, scale = 0.10) + # north arrow, symbol = 16, scale = 0.17
+        # Alt: ggspatial::annotation_north_arrow(pad_x = unit(2.5, "cm"), pad_y = unit(-1.75, "cm")) +
+        # Alt: ggspatial::annotation_scale(plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")) #bgcolor("lightcyan") + #snow2 
+    labs(fill = fill_label) + 
+    scale_fill_gradient(low = "whitesmoke", high = fill_color) + # na.value = "gray30"
+    theme(legend.title = element_text(face = "bold", size = 15), # plot.title = element_text(hjust = 0.75, face = "bold", size = 15),
+          legend.text = element_text(size = 12),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "bottom",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank()) # plot.caption = element_text(hjust = 0, size = 10, face = "italic"), legend.position = c(1,0.5), plot.background = element_rect(fill = "lightcyan")
+  return(plot_choro)
+}
+gen_fig1_part <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label, fill_label_just, fill_increment){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
+    theme_minimal() + 
+    scale_fill_gradient(low = "whitesmoke", high = fill_color, breaks = seq(0, 1, fill_increment)) + 
+    labs(fill = fill_label) + 
+    theme(legend.title = element_text(face = "bold", size = 14, vjust = fill_label_just),  # vertically center legend with its label - does not work well
+          legend.text = element_text(size = 10),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "bottom",
+          legend.box.margin=margin(t=1),
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank())
+  return(plot_choro)
+}
+
+### CREATE: Maps
+  # Overall Index
+fig1_toxpi_poster <- gen_fig1_main(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "nevi", fill_color = '#954100',
+fill_label = "NEVI", lab_borough = 'borough_name') + theme(plot.background = element_rect(fill = 'white', color = 'white'), legend.position = 'bottom')
+  # Domain Scores
+fig1_demo_poster <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "score_demo", fill_color = '#004F7C', fill_label = "", fill_label_just = 0.5, fill_increment = 0.1) + theme(plot.background = element_rect(fill = 'white', color = 'white'), legend.position = 'bottom')
+fig1_econ_poster <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial,fill_var = "score_economic", fill_color = '#006E50', fill_label = "", fill_label_just = 0.5, fill_increment = 0.2) + theme(plot.background = element_rect(fill = 'white', color = 'white'), legend.position = 'bottom')
+fig1_resd_poster <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial,fill_var = "score_residential", fill_color = '#A16F00', fill_label = "", fill_label_just = 0.5, fill_increment = 0.2) + theme(plot.background = element_rect(fill = 'white', color = 'white'), legend.position = 'bottom')
+fig1_hlth_poster <- gen_fig1_part(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial,fill_var = "score_healthstatus", fill_color = '#8E5474', fill_label = "", fill_label_just = 0.5, fill_increment = 0.2) + theme(plot.background = element_rect(fill = 'white', color = 'white'), legend.position = 'bottom')
+
+### POSTER
+ggarrange(fig1_toxpi_poster, ggarrange(fig1_demo_poster, fig1_econ_poster, fig1_resd_poster, fig1_hlth_poster, nrow = 2, ncol = 2), ncol = 2, widths = c(0.75, 1), align = 'h') + theme(plot.background = element_rect(fill = 'white', color = 'white'), plot.margin = margin(t=30)) 
+ggsave('figs/poster/fig1.png', width = 9, height = 7.5) 
+
+```
+
+
+### CLUSTER PROFILE + CLUSTER MAP
+```{r}
+## CREATE: PART 1 - CLUSTER PROFILES
+# Colors
+colors_colorblindsafe <- c('#ffff6d','#ffb6db','#24ff24','#6db6ff','#920000','#490092') 
+
+# Alt: colors_colorblindsafe <- safeColors[2:7] %>% unname()
+# Ref: https://www.r-graph-gallery.com/circular-barplot.html
+nevi_cat_levels <- c('Demographics', 'Economic', 'Residential', 'Health Status')
+# Data Prep
+fig4_part1_df <- tract_final %>% 
+  dplyr::group_by(nevi_cluster) %>% 
+  dplyr::summarize(n_obs = n(),
+                   mean_nevi = mean(nevi),
+                   q1_nevi = quantile(nevi, 0.25),
+                   q3_nevi = quantile(nevi, 0.75),
+                   iqr_nevi = paste0(round(q1_nevi, 2), "-", round(q3_nevi,2)),
+                   mean_demo_score = mean(score_demo),
+                   mean_economic_score = mean(score_economic),
+                   mean_residential_score = mean(score_residential),
+                   mean_healthstatus_score = mean(score_healthstatus)) %>% 
+  tidyr::gather(nevi_cat_prelim, mean, mean_demo_score:mean_healthstatus_score) %>% 
+  dplyr::mutate(nevi_cat = case_when(nevi_cat_prelim == 'mean_demo_score'         ~ nevi_cat_levels[1],
+                                    nevi_cat_prelim == 'mean_economic_score'     ~ nevi_cat_levels[2],
+                                    nevi_cat_prelim == 'mean_residential_score'  ~ nevi_cat_levels[3],
+                                    nevi_cat_prelim == 'mean_healthstatus_score' ~ nevi_cat_levels[4]) %>% factor(nevi_cat_levels),
+                nevi_cluster_label = paste0("Cluster ", nevi_cluster, " (n = ", n_obs, ",\nMean NEVI = ", round(mean_nevi,2), ")"))
+# Plotting
+fig4_part1_prelim <- ggplot(fig4_part1_df, aes(x = nevi_cat, y = mean, fill = nevi_cluster_label, pattern = nevi_cat)) +
+  ggpattern::geom_bar_pattern(stat = "identity", color = "black", pattern_density = 0.3, pattern_key_scale_factor = 0.6) +
+  geom_text(aes(label = round(mean, 2), y = mean + 0.25), size = 4) + # y = mean + 0.5
+  coord_polar(start = (3*pi)/2, direction = -1, clip = "off") +
+  ylim(-0.2, 1.1) + #1.1
+  scale_fill_manual(values = colors_colorblindsafe, labels = c("1","2","3","4","5","6")) +
+  ggpattern::scale_pattern_manual(values = c("circle","stripe","crosshatch","none")) +
+  facet_wrap(. ~ nevi_cluster_label, nrow = 2) +
+  labs(fill = "NEVI Cluster", pattern = "Domain Score") +
+  theme_minimal() +
+  guides(fill = guide_legend(override.aes = list(pattern = "none"), nrow = 2, title.position = "top", title.hjust = 0.5, order = 1), # fill = FALSE 
+         pattern = guide_legend(override.aes = list(fill = "white"), nrow = 6, title.position = "top", title.hjust = 0.5, order = 2)) +
+  theme(legend.position = "right",
+        legend.title = element_text(face = "bold"),
+        legend.box = 'vertical',
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        strip.text.x = element_text(size = 12, face = "bold"),
+        panel.grid = element_blank(),
+        plot.margin = unit(c(t = 0, r = 0, b = 0, l = 0), "cm"),
+        panel.spacing = unit(0, "lines")) # strip.background.y = element_rect("transparent")
+fig4_part1_plot_build <- ggplot_build(fig4_part1_prelim)
+for(i in 1:6){
+  fig4_part1_plot_build[["layout"]][["panel_params"]][[i]][["r.range"]][2] <- 0.45
+}
+fig4_part1 <- ggplot_gtable(fig4_part1_plot_build)
+
+## CREATE: PART 2 - CLUSTER MAP
+gen_fig4_part2 <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label, fill_increment){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray90", fill = "gray90") + 
+    geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
+    theme_minimal() + 
+    scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) +
+    labs(fill = fill_label) + 
+    # guides(fill = guide_legend(nrow = 1, title.position = "top", title.hjust = 0.5)) +
+    theme(legend.position = "none", # legend.title = element_text(face = "bold", size = 12), legend.text = element_text(size = 9), legend.spacing.x = unit(0.5, 'cm'), 
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank(),
+          plot.margin = unit(c(t = 0, r = 0, b = 0, l = 0), "cm")) 
+  return(plot_choro)
+}
+fig4_part2 <- gen_fig4_part2(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "nevi_cluster", fill_color = colors_colorblindsafe, fill_label = "NEVI Cluster") 
+
+## COMBINED PLOT
+ggarrange(fig4_part2, fig4_part1, ncol = 2, align = 'h', widths = c(0.5, 1)) + theme(plot.background = element_rect(fill = 'white', color = 'white')) # + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"))
+# EXPORT
+ggsave('figs/poster/fig2.png', width = 9.5, height = 4) 
+```
+
+## NEVI VS NDI/SVI
+## FIGURE 2. MAP: NEVI, NDI, SVI
+```{r}
+#### CREATE: Functions to create maps
+gen_fig2_main <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
+    theme_minimal() + # Alt: ggthemes::theme_map()
+    #ggsn::scalebar(data = dfin, dist = 20, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "topleft") + # scale bar, bottomright
+    ggsn::north(data = dfin, location = "bottomright", symbol = 10, scale = 0.10) + # north arrow, symbol = 16, scale = 0.17, topleft
+        # Alt: ggspatial::annotation_north_arrow(pad_x = unit(2.5, "cm"), pad_y = unit(-1.75, "cm")) +
+        # Alt: ggspatial::annotation_scale(plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")) #bgcolor("lightcyan") + #snow2 
+    labs(fill = fill_label) + 
+    #scale_fill_gradient(low = "whitesmoke", high = fill_color) + # na.value = "gray30"
+    scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) + # cannot seem to get title to center: title.hjust = 0.5
+    theme(legend.title = element_text(face = "bold", size = 15), # plot.title = element_text(hjust = 0.75, face = "bold", size = 15),
+          legend.text = element_text(size = 12),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "none",
+          legend.box = "vertical",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank())  # plot.caption = element_text(hjust = 0, size = 10, face = "italic"), legend.position = c(1,0.5), plot.background = element_rect(fill = "lightcyan")
+    #guides(size = guide_legend(title.position = "top", title.hjust = 0.5))
+  return(plot_choro)
+}
+gen_fig2_part <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label, fill_label_just, fill_increment){
+  plot_choro <- ggplot() + 
+    geom_sf(data = dfin, aes(fill = !!sym(fill_var)), color = NA) + 
+    geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
+    geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
+    theme_minimal() + 
+    scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) +
+    labs(fill = fill_label) + 
+    theme(legend.title = element_text(face = "bold", size = 14, vjust = fill_label_just),  # vertically center legend with its label - does not work well
+          legend.text = element_text(size = 10),
+          legend.spacing.x = unit(0.5, 'cm'),
+          legend.position = "none",
+          axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          panel.grid = element_blank()) 
+  return(plot_choro)
+}
+
+### PREP DATA
+fig2_sf <- tract_final_spatial %>% 
+  dplyr::select(Tract_FIPS, nevi) %>% 
+  dplyr::left_join(ndi_clean, by = "Tract_FIPS") %>% 
+  dplyr::left_join(svi_clean, by = "Tract_FIPS") %>% 
+  dplyr::mutate(nevi_q = ntile(nevi, 4) %>% as.factor(),
+                ndi_q = ntile(ndi, 4) %>% as.factor(),
+                svi_q = ntile(svi, 4) %>% as.factor()) 
+
+### CREATE: Maps for NEVI, NDI, SVI
+red_fill <- c('#F6DECC', '#E59E66', '#d55e00', '#954100') # "#fee5d9","#fcae91","#fb6a4a","#cb181d"
+fig2_toxpi <- gen_fig2_main(dfin = fig2_sf, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "nevi_q", fill_color = red_fill, fill_label = "NEVI Quartile") 
+fig2_ndi <- gen_fig2_part(dfin = fig2_sf, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "ndi_q", fill_color =  red_fill, fill_label = "NDI Quartile", fill_label_just = 0.5, fill_increment = 0.1) 
+fig2_svi <- gen_fig2_part(dfin = fig2_sf, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "svi_q", fill_color =  red_fill, fill_label = "SVI Quartile", fill_label_just = 0.5, fill_increment = 0.2) 
+## MERGE: Maps
+fig2 <- ggarrange(fig2_toxpi, fig2_ndi, fig2_svi, ncol = 3) + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"))
+fig2 + theme(plot.background = element_rect(fill = 'white', color = 'white'))
+ggsave('figs/poster/fig3.png', width = 12, height = 4) # pixels: 1200 x 900 width = 13, height = 12
+
+```
