@@ -7,7 +7,7 @@
 We developed a Neighborhood Environmental Vulnerability Index (NEVI) to measure vulnerability to environmental pollution using publicly available data. We applied the [Toxicological Prioritization Index (ToxPi)](https://toxpi.org/) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
 
 ## 2. Downloading the NEVI for NYC
-The current version of the NEVI for NYC can be downloaded in the data/processed/ folder. The data file is available in multiple formats at the following spatial scales:
+The current version of the NEVI for NYC can be downloaded in the `data/processed` folder. The data file is available in multiple formats at the following spatial scales:
 
 *Census tract-level*
 - CSV: nevi_final.csv
