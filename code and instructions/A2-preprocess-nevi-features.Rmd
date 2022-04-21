@@ -243,12 +243,12 @@ tract_exclusions_sa <- census_clean %>%
   dplyr::inner_join(tract_exclusions_list_id, by = "SID") %>% 
   dplyr::select(.dots = -c(vars_remove_sa))
 tract_exclusions_sa_raceeth_olap <- tract_exclusions_sa %>% 
-  dplyr::select(-c(white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
-                   black_nonhisp_prop, asian_nonhisp_prop, aian_nhpi_mult_other_nonhisp_prop,
-                   white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
+  dplyr::select(-c(misc_pop, 
+                   white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
+                   black_nonhisp_prop, asian_nonhisp_prop, aian_nhpi_mult_other_nonhisp_prop, white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
 tract_exclusions_sa_raceeth_no_olap <- tract_exclusions_sa %>% 
-  dplyr::select(-c(white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, 
-                   black_prop, asian_prop, aian_nhpi_mult_other_prop,
+  dplyr::select(-c(misc_pop, 
+                   white_prop, aian_prop, nhpi_prop, race_other_prop, race_mult_prop, black_prop, asian_prop, aian_nhpi_mult_other_prop, 
                    white_nonhisp_prop, aian_nonhisp_prop, nhpi_nonhisp_prop, race_other_nonhisp_prop, race_mult_nonhisp_prop))
 ```
 

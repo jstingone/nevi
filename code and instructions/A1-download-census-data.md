@@ -1,20 +1,20 @@
----
-title: "Neighborhood Environmental Vulnerability Index, 2019: Downloading U.S. Census Data"
-author: 
-- "Stephen P. Uong" 
-- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
-date: "3/29/2022"
-output: rmarkdown::github_document
+Neighborhood Environmental Vulnerability Index, 2019: Downloading U.S.
+Census Data
+================
+Stephen P. UongContributors: Jiayi Zhou, Jeanette A. Stingone
+3/29/2022
 
----
-
-Below are steps to download data from the [U.S. Census 2015-2019 5-year estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html). We have already included the downloaded file in our repository: `data/raw/Census/us_census_acs_2019.rds`.
+Below are steps to download data from the [U.S. Census 2015-2019 5-year
+estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html).
+We have already included the downloaded file in our repository:
+`data/raw/Census/us_census_acs_2019.rds`.
 
 ### 1. Set Working Directory
 
-Set the working directory to one folder up from the RMarkdown file for later data export.
+Set the working directory to one folder up from the RMarkdown file for
+later data export.
 
-```{r, setup}
+``` r
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
@@ -22,24 +22,45 @@ knitr::opts_knit$set(root.dir = '..')
 
 Load the following required libraries.
 
-```{r, libraries}
+``` r
 library(tidyverse)
+```
+
+    ## Warning: package 'tidyverse' was built under R version 4.1.3
+
+    ## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
+
+    ## v ggplot2 3.3.5     v purrr   0.3.4
+    ## v tibble  3.1.5     v dplyr   1.0.7
+    ## v tidyr   1.1.4     v stringr 1.4.0
+    ## v readr   2.0.2     v forcats 0.5.1
+
+    ## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+``` r
 library(tidycensus)
 ```
 
+    ## Warning: package 'tidycensus' was built under R version 4.1.3
+
 ### 3. Download U.S. Census Data
 
-The following code uses the R `tidycensus` package to download the U.S. Census data using their API.
+The following code uses the R `tidycensus` package to download the U.S.
+Census data using their API.
 
--   You will need to [request a U.S. Census API key](https://api.census.gov/data/key_signup.html)
+-   You will need to [request a U.S. Census API
+    key](https://api.census.gov/data/key_signup.html)
 
 -   For your own version of the index, you may consider changing the:
 
     -   County names (`county_names`)
 
-    -   U.S. Census variables to include in the index (`vars`, `vars_subject`)
+    -   U.S. Census variables to include in the index (`vars`,
+        `vars_subject`)
 
-```{r, download_census}
+``` r
 ##### Update this with your own U.S. Census API key. 
 # census_api_key('YOUR_CENSUS_API_KEY') 
 options(tigris_use_cache = TRUE)
@@ -102,9 +123,21 @@ vars_subject <- c(
 census_orig <- get_acs(geography = "tract", state = "NY", county = county_names, variables = vars, year = 2019, survey = "acs5", output = "wide", geometry = TRUE, keep_geo_vars = TRUE) %>% 
   dplyr::as_tibble() %>% 
   dplyr::select(-geometry)
+```
+
+    ## Getting data from the 2015-2019 5-year ACS
+
+``` r
   # Download data from the Census subject tables 
 census_orig_subject_table <- get_acs(geography = "tract", state = "NY", county = county_names, variables = vars_subject, year = 2019, survey = "acs5", output = "wide") %>% 
   dplyr::select(-NAME)
+```
+
+    ## Getting data from the 2015-2019 5-year ACS
+
+    ## Using the ACS Subject Tables
+
+``` r
 ## Merge all Census data together by FIPS code 
 census_orig <- census_orig %>% 
   left_join(census_orig_subject_table, by = "GEOID")
@@ -112,8 +145,9 @@ census_orig <- census_orig %>%
 
 ### 4. Export Census Data
 
-Save the Census data that you have just downloaded locally for later use.
+Save the Census data that you have just downloaded locally for later
+use.
 
-```{r, export_census}
+``` r
 saveRDS(census_orig, file = "data/raw/US Census/us_census_acs_2019.rds")
 ```
