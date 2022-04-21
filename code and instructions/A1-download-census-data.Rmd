@@ -10,34 +10,44 @@ output:
     toc_float: true
 ---
 
-Below are steps to download data from the [U.S. Census 2015-2019 5-year estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html). We have already included the downloadeded file in our repository (data/raw/Census/us_census_acs_2019.rds).
+Below are steps to download data from the [U.S. Census 2015-2019 5-year estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html). We have already included the downloaded file in our repository: `data/raw/Census/us_census_acs_2019.rds`.
 
 ### 1. Set Working Directory
+
 Set the working directory to one folder up from the RMarkdown file for later data export.
+
 ```{r, setup}
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
 ### 2. Load Required Libraries
+
 Load the following required libraries.
+
 ```{r, libraries}
 library(tidyverse)
 library(tidycensus)
 ```
 
 ### 3. Download U.S. Census Data
-The following code uses the tidycensus package to download the U.S. Census data using their API in R. 
 
-- You will need to [request a U.S. Census API key](https://api.census.gov/data/key_signup.html)
-- You may consider changing the county name (`county_names`) or variables desired from the U.S. Census (`vars`, `vars_subject`).
+The following code uses the R `tidycensus` package to download the U.S. Census data using their API.
+
+-   You will need to [request a U.S. Census API key](https://api.census.gov/data/key_signup.html)
+
+-   For your own version of the index, you may consider changing the:
+
+    -   County names (`county_names`)
+
+    -   U.S. Census variables to include in the index (`vars`, `vars_subject`)
 
 ```{r, download_census}
-## Update this with your own U.S. Census API key. 
-#census_api_key('YOUR_CENSUS_API_KEY') 
+##### Update this with your own U.S. Census API key. 
+# census_api_key('YOUR_CENSUS_API_KEY') 
 options(tigris_use_cache = TRUE)
-## Specify county names for Census data download
+##### Specify county names for Census data download
 county_names <- c('New York County', 'Kings County', 'Bronx County', 'Richmond County', 'Queens County')
-## Specify variables desired from the Census
+##### Specify variables desired from the Census
 vars <- c(# placeholder: age variable name below, subject table variable
           'B11005_001E','B11005_007E','B11005_010E', # female-led households
           'B02001_001E','B02001_002E','B02001_003E','B02001_005E','B02001_004E','B02001_006E','B02001_007E','B02001_008E', # race (not currently included in NEVI)
@@ -89,7 +99,7 @@ vars_subject <- c(
   'S0101_C02_022E','S0101_C02_030E', # age
   'S1810_C03_001E' # disability
 )
-## Download data from the Census
+##### Download data from the Census
   # Note: Downloaded spatial data in order to get geographic variables (e.g. land area for population density)
 census_orig <- get_acs(geography = "tract", state = "NY", county = county_names, variables = vars, year = 2019, survey = "acs5", output = "wide", geometry = TRUE, keep_geo_vars = TRUE) %>% 
   dplyr::as_tibble() %>% 
@@ -103,10 +113,9 @@ census_orig <- census_orig %>%
 ```
 
 ### 4. Export Census Data
+
+Save the Census data that you have just downloaded locally for later use.
+
 ```{r, export_census}
 saveRDS(census_orig, file = "data/raw/US Census/us_census_acs_2019.rds")
 ```
-
-
-
-

@@ -20,18 +20,18 @@ The current version of the NEVI for NYC can be downloaded in the `data/processed
 ## 2. Folder and File Structure
 ### Folder Structure
 We have organized relevant files in the creation of the NEVI in the following folders:
-- **code and instructions:** Code for the creation of the index
-- **data:** 
-	- **data/raw:** data files downloaded before any data cleaning/processing
-	- **data/processed:** data files after any data cleaning/processing or created manually
-- **figures and tables:** figures and tables created from our code.
+- **`code and instructions`:** Code for the creation of the index
+- **`data`:** 
+	- **`data/raw`:** data files downloaded before any data cleaning/processing
+	- **`data/processed`:** data files after any data cleaning/processing or created manually
+- **`figures and tables`:** figures and tables created from our code.
 
 
 ## 3. Data Sources
 We used the two primary data sources for the following features used to calculate the NEVI:
-- [U.S. American Community Survey, 5-year estimates from 2015-2019](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html): demographics, economic indicators, and residential characteristics
+- [U.S. American Community Survey, 2015-2019 5-year estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html): demographics, economic indicators, and residential characteristics
 	- Request a U.S. Census API key [here](https://api.census.gov/data/key_signup.html)
-- [U.S. Centers for Disease Control and Prevention PLACES 2020](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk): health status information (health behaviors, conditions, preventive practices, and insurance access)
+- [U.S. Centers for Disease Control and Prevention PLACES, 2020](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk): health status information (health behaviors, conditions, preventive practices, and insurance access)
 
 Other data sources to create zip code-level NEVI.
 - [Modified zip code tabulation areas](https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk)

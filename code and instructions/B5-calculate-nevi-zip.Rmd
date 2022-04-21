@@ -1,5 +1,5 @@
 ---
-title: "Neighborhood Environmental Vulnerability Index, 2019: Calculate "
+title: "Neighborhood Environmental Vulnerability Index, 2019: Calculate Zip Code-Level"
 author: 
 - "Stephen P. Uong" 
 - "Contributors: Jiayi Zhou, Jeanette A. Stingone"
@@ -17,7 +17,8 @@ Set the working directory to one folder up from the RMarkdown file for later dat
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
-### 2. LOAD LIBRARIES
+### 2. Load Required Libraries
+
 Load the following required libraries.
 ```{r, libraries}
 pacman::p_load(
