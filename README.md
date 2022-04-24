@@ -95,16 +95,16 @@ You will need the following software, R packages, and data to calculate the NEVI
 
 ## 5. Code and Instructions
 To calculate the NEVI, you will need to follow the instructions in these documents in the `code and instructions` folder. Click on the corresponding markdown (.md) files to view the code and instructions directly online.
-- `A1-download-census-data.Rmd`: Download features from the U.S. Census American Community Survey needed to calculate the index
-- `A2-preprocess-nevi-features.Rmd`: Prepare features to input into ToxPi.
-- `A3-calculate-nevi-toxpi-gui.docx`: Calculate the NEVI and subdomain scores using Toxpi.
-- `A4-clean-nevi.Rmd`: Clean the output from ToxPi and calculate domain scores.
+- [`A1-download-census-data`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/A1-download-census-data.md): Download features from the U.S. Census American Community Survey needed to calculate the index 
+- [`A2-preprocess-nevi-features`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/A2-preprocess-nevi-features.md): Prepare features to input into ToxPi.
+- [`A3-calculate-nevi-toxpi-gui`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/A3-calculate-nevi-toxpi-gui.docx): Calculate the NEVI and subdomain scores using Toxpi.
+- [`A4-clean-nevi`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/A4-clean-nevi.md): Clean the output from ToxPi and calculate domain scores.
 
 There are also other code available to accomplish optional tasks:
-- `B1-create-nevi-clusters.Rmd`: Create clusters based on NEVI subdomain scores and their corresponding weights using hierarchical clustering
-- `B2-calculate-ndi-svi.Rmd`: Calculate a previously created index called the Neighborhood Deprivation Index (NDI).
-- `B3-create-figures-tables.Rmd`: Create figures and tables presented in the manuscript.
-- `B4-calculate-nevi-zip.Rmd`: Calculate zip code-level NEVI from Census tract-level NEVI using residential ratios.
+- [`B1-create-nevi-clusters`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/B1-create-nevi-clusters.md): Create clusters based on NEVI subdomain scores and their corresponding weights using hierarchical clustering
+- [`B2-calculate-ndi-svi`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/B3-calculate-ndi-svi.Rmd): Calculate a previously created index called the Neighborhood Deprivation Index (NDI).
+- [`B3-create-figures-tables`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/B4-create-figures-tables.Rmd): Create figures and tables presented in the manuscript.
+- [`B4-calculate-nevi-zip`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/B5-calculate-nevi-zip.md): Calculate zip code-level NEVI from Census tract-level NEVI using residential ratios.
 
 ## 6. Cloning this Repository with RStudio
 Below are steps to clone this repository to your local device with RStudio. Please refer to this [link](https://resources.github.com/github-and-rstudio/) for more information about using git in RStudio.
