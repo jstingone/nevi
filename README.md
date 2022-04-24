@@ -17,6 +17,8 @@ The current version of the NEVI for NYC can be downloaded in the [`data/processe
 - CSV: [`nevi_zip_final.csv`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_zip_final.csv)
 - R Data file: [`nevi_zip_final.rds`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_zip_final.rds)
 
+![nevi plot](/figures and tables/figures/fig_nevi.png)
+
 ## 2. Folder Structure
 We have organized relevant files for the calculation of the NEVI in the following folders:
 - `code and instructions`: Code for the calculation of the index
@@ -98,7 +100,7 @@ To calculate the NEVI, you will need to follow the instructions in these documen
 - `A3-calculate-nevi-toxpi-gui.docx`: Calculate the NEVI and subdomain scores using Toxpi.
 - `A4-clean-nevi.Rmd`: Clean the output from ToxPi and calculate domain scores.
 
-There are also other code available to accomplish other optional tasks:
+There are also other code available to accomplish optional tasks:
 - `B1-create-nevi-clusters.Rmd`: Create clusters based on NEVI subdomain scores and their corresponding weights using hierarchical clustering
 - `B2-calculate-ndi-svi.Rmd`: Calculate a previously created index called the Neighborhood Deprivation Index (NDI).
 - `B3-create-figures-tables.Rmd`: Create figures and tables presented in the manuscript.
