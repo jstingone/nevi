@@ -160,11 +160,11 @@ fig1_part3 <- ggarrange(fig1_hlth, labels = "E", font.label = list(size = 25)) +
 
 ## EXPORT
 fig1_part1
-ggsave('figs/fig1_part1.png', width = 10, height = 15) # pixels: 1200 x 900, width = 15, height = 12
+ggsave('figures and tables/figures/fig1_part1.png', width = 10, height = 15) # pixels: 1200 x 900, width = 15, height = 12
 fig1_part2
-ggsave('figs/fig1_part2.png', width = 10, height = 15) 
+ggsave('figures and tables/figures/fig1_part2.png', width = 10, height = 15) 
 fig1_part3
-ggsave('figs/fig1_part3.png', width = 10, height = 8) 
+ggsave('figures and tables/figures/fig1_part3.png', width = 10, height = 8) 
 
 ```
 
@@ -233,7 +233,7 @@ fig2_svi <- gen_fig2_part(dfin = fig2_sf, dfexcl = tract_exclude_spatial, dfboro
 fig2 <- ggarrange(fig2_toxpi, fig2_ndi, fig2_svi, ncol = 3, labels = c("A","B","C")) + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"))
 # fig2 <- ggarrange(fig2_toxpi, ggarrange(fig2_ndi, fig2_svi, nrow = 2, labels = "B", font.label = list(size = 25)), ncol = 2, labels = "A", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 2, l = 0, "cm"))
 fig2
-ggsave('figs/fig2.png', width = 13, height = 6) # pixels: 1200 x 900 width = 13, height = 12
+ggsave('figures and tables/figures/fig2.png', width = 13, height = 6) # pixels: 1200 x 900 width = 13, height = 12
 
 ```
 
@@ -282,9 +282,9 @@ fig3_ndi <- gen_fig3_scatterplot(datain = fig3_df, var = "ndi", var_label = "Nei
 figs2_svi <- gen_fig3_scatterplot(datain = fig3_df, var = "svi", var_label = "Social Vulnerability Index", var_breaks = 0.2) # SVI
 ### EXPORT: Plots
 fig3_ndi
-ggsave('figs/fig3.png', width = 15, height = 12)
+ggsave('figures and tables/figures/fig3.png', width = 15, height = 12)
 figs2_svi
-ggsave('figs/figs2.png', width = 15, height = 12)
+ggsave('figures and tables/figures/figs2.png', width = 15, height = 12)
 
 
 ```
@@ -385,7 +385,7 @@ fig4_part2 <- gen_fig4_part2(dfin = tract_final_spatial, dfexcl = tract_exclude_
 fig4b <- ggarrange(fig4_part1, ggarrange(fig4_part2, ggplot() + theme_void(), ncol = 2), nrow = 2) + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"))
 fig4b
 # EXPORT
-ggsave('figs/fig4_part.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
+ggsave('figures and tables/figures/fig4_part.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
 
 # View average NEVI domains scores by cluster for text
 fig4b_part1_df %>% distinct(nevi_cluster, mean_nevi, iqr_nevi)
@@ -474,7 +474,7 @@ ggplot(data = fig5_df, aes(x = cluster_label, y = subdomain_label, fill = median
         legend.title = element_text(size = 16), legend.text = element_text(size = 14),
         legend.position = 'top', legend.key.width = unit(1.5, 'cm'), legend.spacing.x = unit(1, 'cm'))
 ## EXPORT
-ggsave('figs/fig5.png', width = 10, height = 13)
+ggsave('figures and tables/figures/fig5.png', width = 10, height = 13)
 ```
 
 
@@ -522,7 +522,7 @@ figs1c <- ggplot(figs1_df %>% filter(part == 'SVI'), aes(y = borough, x = index,
 # fig3_labs <- c("A","B","C") # c("Neighborhood Environmental Vulnerability Index","Neighborhood Deprivation Index","Social Vulnerability Index")
 figs1 <- ggarrange(figs1a, figs1b, figs1c, nrow = 3, font.label = list(size = 25), align = "v", heights = c(4,1,1)) #labels = fig3_labs,
 annotate_figure(figs1,left = text_grob("Borough", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
-ggsave('figs/figs1.png', width = 15, height = 16)
+ggsave('figures and tables/figures/figs1.png', width = 15, height = 16)
 ```
 
 ### SUPPLEMENTAL FIGURE 3 Sensitivity analysis: Race and ethnicity
@@ -611,7 +611,7 @@ figs3 <- ggarrange(figs3a, figs3b, nrow = 2, font.label = list(size = 25), align
         panel.background = element_rect(fill = "white", color = "white"))
 
 figs3_export <- annotate_figure(figs3,left = text_grob("Borough", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
-ggsave('figs/figs3.png', plot = figs3_export, width = 10, height = 10)
+ggsave('figures and tables/figures/figs3.png', plot = figs3_export, width = 10, height = 10)
 
 ```
 
@@ -732,7 +732,7 @@ figs4_part2 <- gen_figs4_part2(dfin = figs4_spatial, dfexcl = tract_exclude_spat
 figs4b <- ggarrange(figs4_part1, figs4_part2, nrow = 2) + theme(plot.margin = margin(t = 0, r = 0, b = 0, l = 0, "cm"), panel.background = element_rect(fill = 'white', color = 'white'))
 figs4b
 # EXPORT
-ggsave('figs/figs4.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
+ggsave('figures and tables/figures/figs4.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
 
 ```
 
@@ -818,7 +818,7 @@ ggplot(data = fig5_df, aes(x = cluster_label, y = subdomain_label, fill = median
         legend.title = element_text(size = 16), legend.text = element_text(size = 14),
         legend.position = 'top', legend.key.width = unit(1.5, 'cm'), legend.spacing.x = unit(1, 'cm'))
 ## EXPORT
-ggsave('figs/fig5.png', width = 10, height = 13)
+ggsave('figures and tables/figures/fig5.png', width = 10, height = 13)
 
 ```
 
@@ -856,7 +856,7 @@ stab1_full <- rbind(gen_stab1(stab1_df, "nevi", "Neighborhood Environmental Vuln
                    ,gen_stab1(stab1_df, "score_healthstatus", "NEVI Domain: Health Status"))
 
 # text_summary %>% View()
-export(stab1_full, 'tabs/stab1_full.xlsx')
+export(stab1_full, 'figures and tables/tables/stab1_full.xlsx')
 
 # OVERALL CORRELATIONS
 cor.test(stab1_df$nevi, stab1_df$ndi, method = "spearman")
@@ -918,7 +918,7 @@ stab4 <- tract_final %>%
   dplyr::left_join(gen_stab4(tract_final, 'score_healthstatus_lackinsurance') %>% dplyr::rename(score_healthstatus_lackinsurance_median_iqr = median_iqr)) %>% 
   t()
 ## EXPORT
-export(stab4, 'tabs/stab4.xlsx', row.names = TRUE)
+export(stab4, 'figures and tables/tables/stab4.xlsx', row.names = TRUE)
 
 ```
 
