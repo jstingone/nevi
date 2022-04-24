@@ -17,13 +17,13 @@ The current version of the NEVI for NYC can be downloaded in the [`data/processe
 - CSV: `nevi_zip_final.csv`
 - R Data file: `nevi_zip_final.rds`
 
-## 2. Folder and File Structure
+## 2. Folder Structure
 We have organized relevant files in the creation of the NEVI in the following folders:
-- **`code and instructions`:** Code for the creation of the index
-- **`data`:** 
-	- **`data/raw`:** data files downloaded before any data cleaning/processing
-	- **`data/processed`:** data files after any data cleaning/processing or created manually
-- **`figures and tables`:** figures and tables created from our code
+- `code and instructions`: Code for the creation of the index
+- `data`: 
+	- `data/raw`: data files downloaded before any data cleaning/processing
+	- `data/processed`: data files after any data cleaning/processing or created manually
+- `figures and tables`: figures and tables created from our code
 
 
 ## 3. Data Sources
@@ -40,7 +40,7 @@ Other data sources to create zip code-level NEVI:
 ## 4. Requirements
 You will need the following software, R packages, and data to calculate the NEVI.
 
-### Software and R Packages
+### 4.1 Software and R Packages
 1. Download the following software: 
 - [R](https://cran.r-project.org/bin/windows/base/)
 - [RStudio](https://www.rstudio.com/products/rstudio/download/#download) or another R graphical user interface
@@ -83,7 +83,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 	- *`gplots:`* 3.1.1 
 
 
-### Data
+### 4.2 Data
 - U.S. Centers for Disease Control and Prevention PLACES 2020
 	- Download [here](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk).
 - U.S. American Community Survey, 5-year estimates from 2015-2019
