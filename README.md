@@ -10,16 +10,16 @@ We developed a Neighborhood Environmental Vulnerability Index (NEVI) to measure 
 The current version of the NEVI for NYC can be downloaded in the [`data/processed`](https://github.com/jstingone/nvi/tree/main/data/processed) folder. The data file is available in multiple formats at the following spatial scales:
 
 *Census tract-level*
-- CSV: `nevi_tract_final.csv`
-- R Data file: `nevi_tract_final.rds`
+- CSV: [`nevi_tract_final.csv`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_tract_final.csv)
+- R Data file: [`nevi_tract_final.rds`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_tract_final.rds)
 
 *Zip code-level*
-- CSV: `nevi_zip_final.csv`
-- R Data file: `nevi_zip_final.rds`
+- CSV: [`nevi_zip_final.csv`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_zip_final.csv)
+- R Data file: [`nevi_zip_final.rds`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_zip_final.rds)
 
 ## 2. Folder Structure
-We have organized relevant files in the creation of the NEVI in the following folders:
-- `code and instructions`: Code for the creation of the index
+We have organized relevant files for the calculation of the NEVI in the following folders:
+- `code and instructions`: Code for the calculation of the index
 - `data`: 
 	- `data/raw`: data files downloaded before any data cleaning/processing
 	- `data/processed`: data files after any data cleaning/processing or created manually
@@ -32,7 +32,7 @@ We used the two primary data sources for the following features used to calculat
 	- Request a U.S. Census API key [here](https://api.census.gov/data/key_signup.html)
 - [U.S. Centers for Disease Control and Prevention PLACES, 2020](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk): health status information (health behaviors, conditions, preventive practices, and insurance access)
 
-Other data sources to create zip code-level NEVI:
+Other data sources used to create zip code-level NEVI:
 - [Modified Zip Code Tabulation Areas (MODZCTA) used by the New York City Department of Health & Mental Hygiene (NYC DOHMH)](https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk)
 - [U.S. Department of Housing and Urban Development - Zip Code and Tract Crosswalk](https://www.huduser.gov/portal/datasets/usps_crosswalk.html)
 
@@ -80,7 +80,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 	- *`ggpubr`:* 0.4.0 
 	- *`colorBlindness`:* 0.1.9 
 	- *`ggpattern`:* 0.2.0 
-	- *`gplots:`* 3.1.1 
+	- *`gplots`:* 3.1.1 
 
 
 ### 4.2 Data
@@ -88,7 +88,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 	- Download [here](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk).
 - U.S. American Community Survey, 5-year estimates from 2015-2019
 	- To download the data, refer to our code: `code and instructions/A1-download-census-data.Rmd`
-	- More information about the [here](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html).
+	- More information about the American Community 5-year estimates [here](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html).
 
 
 ## 5. Code and Instructions
