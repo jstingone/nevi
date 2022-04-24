@@ -1,7 +1,7 @@
 Neighborhood Environmental Vulnerability Index, 2019: Downloading U.S.
 Census Data
 ================
-Stephen P. UongContributors: Jiayi Zhou, Jeanette A. Stingone
+Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone
 3/29/2022
 
 Below are steps to download data from the [U.S. Census 2015-2019 5-year

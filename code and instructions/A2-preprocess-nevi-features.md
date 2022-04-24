@@ -1,18 +1,19 @@
----
-title: "Neighborhood Environmental Vulnerability Index, 2019: Preprocessing NEVI Features"
-author: 
-- "Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone"
-date: "3/29/2022"
-output: rmarkdown::github_document
----
+Neighborhood Environmental Vulnerability Index, 2019: Preprocessing NEVI
+Features
+================
+Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone
+3/29/2022
 
-Below are steps to preprocess the features used to calculate the NEVI with the Toxicological Priority Index Graphical User Interface (ToxPi GUI).
+Below are steps to preprocess the features used to calculate the NEVI
+with the Toxicological Priority Index Graphical User Interface (ToxPi
+GUI).
 
 ### 1. Set Working Directory
 
-Set the working directory to one folder up from the RMarkdown file for later data export.
+Set the working directory to one folder up from the RMarkdown file for
+later data export.
 
-```{r, setup}
+``` r
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
@@ -20,24 +21,47 @@ knitr::opts_knit$set(root.dir = '..')
 
 Load the following required libraries.
 
-```{r, libraries}
+``` r
 library(tidyverse)
+```
+
+    ## Warning: package 'tidyverse' was built under R version 4.1.3
+
+    ## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
+
+    ## v ggplot2 3.3.5     v purrr   0.3.4
+    ## v tibble  3.1.5     v dplyr   1.0.7
+    ## v tidyr   1.1.4     v stringr 1.4.0
+    ## v readr   2.0.2     v forcats 0.5.1
+
+    ## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+``` r
 library(rio)
 ```
 
+    ## Warning: package 'rio' was built under R version 4.1.3
+
 ### 3. Import the Data
 
-Import the following Census tract-level data files:
+We imported the following Census tract-level data files:
 
--   [U.S. Centers for Disease Control and Prevention PLACES in 2020](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk)
+-   [U.S. Centers for Disease Control and Prevention PLACES in
+    2020](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk)
 
-    -   We previously downloaded this data in the link above and saved the file in `data/raw/US CDC PLACES`
+    -   We previously downloaded this data in the link above and saved
+        the file in `data/raw/US CDC PLACES`
 
--   [U.S. Census American Community Survey, 2015-2019 5-year estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html)
+-   [U.S. Census American Community Survey, 2015-2019 5-year
+    estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html)
 
-    -   We previously downloaded this data using our code `A1-download-census-data.Rmd` and saved the file in `data/raw/US Census`
+    -   We previously downloaded this data using our code
+        `A1-download-census-data.Rmd` and saved the file in
+        `data/raw/US Census`
 
-```{r, import_data}
+``` r
 setwd('C:/Users/steph/OneDrive - cumc.columbia.edu/Phi/My Courses/Columbia/Work/Research - Jeanette/projects/covid-vulnerability-index/comms/git nvi')
 # US CDC PLACES data, 2020 release
 PLACES_orig <- rio::import('data/raw/US CDC PLACES/PLACES_2020_release.csv')
@@ -49,9 +73,11 @@ census_orig <- readRDS( file = "data/raw/US Census/us_census_acs_2019.rds")
 
 #### 4.1. Clean U.S. CDC PLACES Data
 
-We first cleaned the U.S. CDC PLACES data, transforming variables so that larger, more positive values of features would correspond to greater vulnerability.
+We first cleaned the U.S. CDC PLACES data, transforming variables so
+that larger, more positive values of features would correspond to
+greater vulnerability.
 
-```{r}
+``` r
 PLACES_clean <- PLACES_orig %>% 
   dplyr::mutate(tract = as.character(TractFIPS),
                 CHECKUP_CrudePrev = -CHECKUP_CrudePrev - min(-CHECKUP_CrudePrev, na.rm = TRUE),
@@ -73,9 +99,14 @@ PLACES_clean <- PLACES_orig %>%
 
 #### 4.2. Clean U.S. Census ACS Data
 
-We cleaned the U.S. Census ACS data, calculating proportions and transforming features so that larger values of features would correspond to greater vulnerability. This code below still includes population (`misc_pop`) to later generate a list of excluded tracts and race and ethnicity variables that are not included in the NEVI (only used in sensitivity analysis).
+We cleaned the U.S. Census ACS data, calculating proportions and
+transforming features so that larger values of features would correspond
+to greater vulnerability. This code below still includes population
+(`misc_pop`) to later generate a list of excluded tracts and race and
+ethnicity variables that are not included in the NEVI (only used in
+sensitivity analysis).
 
-```{r}
+``` r
 census_features <- census_orig %>% 
   dplyr::as_tibble() %>% 
   dplyr::transmute(
@@ -174,19 +205,26 @@ census_clean <- census_orig %>%
 
 #### 5.1. Prepare Exclusions List
 
--   We imported a list of Census tracts that we previously created to be excluded because they had
+-   We imported a list of Census tracts that we previously created to be
+    excluded because they had
 
     1.  A population of less than 20 or
 
-    2.  At least 1 missing feature used in the NEVI or Neighborhood Deprivation Index (NDI), one of the indices to which the NEVI was compared.
+    2.  At least 1 missing feature used in the NEVI or Neighborhood
+        Deprivation Index (NDI), one of the indices to which the NEVI
+        was compared.
 
--   The exclusion list we used considers features used in *both* the NEVI and NDI.
+-   The exclusion list we used considers features used in *both* the
+    NEVI and NDI.
 
-    -   We have also provided code (commented out below) that can be used to create a list of Census tracts to be excluded *only* based on features used in the NEVI.
+    -   We have also provided code (commented out below) that can be
+        used to create a list of Census tracts to be excluded *only*
+        based on features used in the NEVI.
 
--   We do not currently include race and ethnicity in the NEVI, but we later include these variables for sensitivity analysis.
+-   We do not currently include race and ethnicity in the NEVI, but we
+    later include these variables for sensitivity analysis.
 
-```{r}
+``` r
 # Features not included in the NEVI
 vars_raceeth <- c('white_prop', 'aian_prop', 'nhpi_prop', 'race_other_prop', 'race_mult_prop', 'black_prop', 'asian_prop', 'aian_nhpi_mult_other_prop',
                  'black_nonhisp_prop','asian_nonhisp_prop','aian_nhpi_mult_other_nonhisp_prop','hisp_prop', 'white_nonhisp_prop','aian_nonhisp_prop', 'nhpi_nonhisp_prop', 'race_other_nonhisp_prop', 'race_mult_nonhisp_prop')
@@ -207,24 +245,17 @@ tract_exclusions_list_id <- tract_exclusions_list %>%
 
 #### 5.2. Merge Data and Apply Exclusions
 
-We merged the data from the U.S. CDC 500 Cities project and the U.S. Census before applying our exclusions that we described above.
-
-```{r, include = FALSE}
-# Apply exclusions (pop < 20 & missing features)
-tract_nevi_features_exclusions <- census_clean %>% 
-  dplyr::left_join(PLACES_clean, by = "tract") %>% 
-  dplyr::rename(SID = tract) %>% 
-  dplyr::anti_join(tract_exclusions_list_id, by = "SID") 
-# Remove race and ethnicity variables not used in this version of the NEVI
-tract_nevi_features_final <- tract_nevi_features_exclusions %>% 
-  dplyr::select(-one_of(c(vars_raceeth, 'misc_pop')))
-```
+We merged the data from the U.S. CDC 500 Cities project and the U.S.
+Census before applying our exclusions that we described above.
 
 #### 5.3. Add ToxPi Header to NEVI Features
 
-We added a header that we manually created needed to specify options to create the NEVI in the ToxPi GUI. The header contains information about the slices, slice weights, name of the slices, and color of the slices. For example:
+We added a header that we manually created needed to specify options to
+create the NEVI in the ToxPi GUI. The header contains information about
+the slices, slice weights, name of the slices, and color of the slices.
+For example:
 
-```{r, add_toxpi_header}
+``` r
 # Import header needed for Toxpi GUI
 header_toxpi <- read.csv("data/processed/preprocessing/toxpi/header/toxpi_header.csv", header = F, colClasses = rep("character",58))
 # Create function to bind ToxPi header to NEVI features
@@ -241,20 +272,22 @@ toxpi_export <- bind_toxpi_header(header_toxpi, tract_nevi_features_final)
 
 ### 6. Export NEVI Features with and without ToxPi Header
 
-We exported our data into a spreadsheet with the NEVI features with and without the header needed to import the spreadsheet into the ToxPi GUI.
+We exported our data into a spreadsheet with the NEVI features with and
+without the header needed to import the spreadsheet into the ToxPi GUI.
 
-```{r, export_features}
+``` r
 export(toxpi_export, "data/processed/preprocessing/nevi_tract_features_toxpiheader.csv", col.names = FALSE)
 saveRDS(tract_nevi_features_final, "data/processed/preprocessing/nevi_tract_features.rds")
 ```
 
 ### 7. (Optional) Repeat Steps 5-6 for Sensitivity Analysis of Race and Ethnicity
 
-We repeated steps 5-6 to see how the NEVI may have change if we included race and ethnicity variables.
+We repeated steps 5-6 to see how the NEVI may have change if we included
+race and ethnicity variables.
 
 #### 7.1 Merge Data and Apply Exclusions
 
-```{r}
+``` r
 # Overlapping race and ethnicity categories
 tract_nevi_features_raceeth_olap <- tract_nevi_features_exclusions %>% 
   dplyr::select(-c(misc_pop, 
@@ -269,7 +302,7 @@ tract_nevi_features_raceeth_no_olap <- tract_nevi_features_exclusions %>%
 
 #### 7.2 Add ToxPi Header to NEVI Features
 
-```{r}
+``` r
 # Import header needed for Toxpi GUI
 header_toxpi_raceeth_hispsub <- read.csv("data/processed/sensitivity analysis/race and ethnicity/toxpi/header/toxpi_header_raceeth_hispsub.csv", header = F, colClasses = rep("character",62))
 header_toxpi_raceeth <- read.csv("data/processed/sensitivity analysis/race and ethnicity/toxpi/header/toxpi_header_raceeth.csv", header = F, colClasses = rep("character",62))
@@ -281,7 +314,7 @@ toxpi_export_raceeth_hispsub <- bind_toxpi_header(header_toxpi_raceeth_hispsub, 
 
 #### 7.3 Export NEVI Features with ToxPi Header
 
-```{r}
+``` r
 export(toxpi_export_raceeth_olap, "data/processed/sensitivity analysis/race and ethnicity/nevi_tract_features_toxpiheader_raceeth_olap.csv", col.names = FALSE) # Overlapping race and ethnicity categories
 export(toxpi_export_raceeth_no_olap, "data/processed/sensitivity analysis/race and ethnicity/nevi_tract_features_toxpiheader_raceeth_no_olap.csv", col.names = FALSE) # Non-overlapping race and ethnicity categories
 export(toxpi_export_raceeth_hispsub, "data/processed/sensitivity analysis/race and ethnicity/nevi_tract_features_toxpiheader_raceeth_hispsub.csv", col.names = FALSE) # Non-overlapping race and ethnicity categories, Hispanic as separate subdomain
@@ -289,4 +322,5 @@ export(toxpi_export_raceeth_hispsub, "data/processed/sensitivity analysis/race a
 
 ### 8. Generate the NEVI using the ToxPi GUI
 
-To generate the NEVI in the ToxPi GUI, you will need to complete the following steps in `A3-calculate-nevi-toxpi-gui.docx`.
+To generate the NEVI in the ToxPi GUI, you will need to complete the
+following steps in `A3-calculate-nevi-toxpi-gui.docx`.

@@ -1,16 +1,15 @@
----
-title: "Neighborhood Environmental Vulnerability Index, 2019: Calculate Zip Code-Level NEVI"
-author: 
-- "Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone"
-date: "3/29/2022"
-output: rmarkdown::github_document
----
+Neighborhood Environmental Vulnerability Index, 2019: Calculate Zip
+Code-Level NEVI
+================
+Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone
+3/29/2022
 
 ### 1. Set Working Directory
 
-Set the working directory to one folder up from the RMarkdown file for later data export.
+Set the working directory to one folder up from the RMarkdown file for
+later data export.
 
-```{r, setup}
+``` r
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
@@ -18,29 +17,68 @@ knitr::opts_knit$set(root.dir = '..')
 
 Load the following required libraries.
 
-```{r, libraries}
+``` r
 library(tidyverse)
+```
+
+    ## Warning: package 'tidyverse' was built under R version 4.1.3
+
+    ## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
+
+    ## v ggplot2 3.3.5     v purrr   0.3.4
+    ## v tibble  3.1.5     v dplyr   1.0.7
+    ## v tidyr   1.1.4     v stringr 1.4.0
+    ## v readr   2.0.2     v forcats 0.5.1
+
+    ## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+``` r
 library(rio)
 ```
+
+    ## Warning: package 'rio' was built under R version 4.1.3
 
 ### 3. Import the Data
 
 Import the following data files:
 
--   [Modified Zip Code Tabulation Areas (MODZCTA) used by the New York City Department of Health & Mental Hygiene (NYC DOHMH)](https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk)
+-   [Modified Zip Code Tabulation Areas (MODZCTA) used by the New York
+    City Department of Health & Mental Hygiene (NYC
+    DOHMH)](https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk)
 
-    -   We previously downloaded this data in the link above and saved the file in `data/raw/Modified Zip Code Tabulation Areas`
+    -   We previously downloaded this data in the link above and saved
+        the file in `data/raw/Modified Zip Code Tabulation Areas`
 
--   [U.S. Department of Housing and Urban Development - Zip Code and Tract Crosswalk](https://www.huduser.gov/portal/datasets/usps_crosswalk.html)
+-   [U.S. Department of Housing and Urban Development - Zip Code and
+    Tract
+    Crosswalk](https://www.huduser.gov/portal/datasets/usps_crosswalk.html)
 
-    -   We previously downloaded this data in the link above and saved the file in `data/raw/US Department of Housing and Urban Development - Crosswalk`
+    -   We previously downloaded this data in the link above and saved
+        the file in
+        `data/raw/US Department of Housing and Urban Development - Crosswalk`
 
-```{r, import_data}
+``` r
 # Zip code list used by NYC DOHMH ZCTA list
 list_nyc_zip <- readr::read_csv('data/raw/Modified Zip Code Tabulation Areas/Modified_Zip_Code_Tabulation_Areas__MODZCTA_.csv') %>% 
   dplyr::select(ZCTA) %>% 
   tidyr::separate_rows(ZCTA, sep = ',') %>% 
   dplyr::transmute(zip = trimws(ZCTA))
+```
+
+    ## Rows: 178 Columns: 5
+
+    ## -- Column specification --------------------------------------------------------
+    ## Delimiter: ","
+    ## chr (3): label, ZCTA, the_geom
+    ## dbl (2): MODZCTA, pop_est
+
+    ## 
+    ## i Use `spec()` to retrieve the full column specification for this data.
+    ## i Specify the column types or set `show_col_types = FALSE` to quiet this message.
+
+``` r
 # U.S. Department of Housing and Urban Development - Zip Code and Tract Crosswalk
 xwalk_zip_tract <- readxl::read_excel("data/raw/US Department of Housing and Urban Development - Crosswalk/ZIP_TRACT_122019.xlsx", col_types = c(rep('guess',2),rep('numeric',4)))
 # Tract-level NEVI scores generate from the generate_nevi.Rmd code
@@ -49,9 +87,10 @@ nevi_tract <- readRDS(file = "data/processed/nevi_tract_final.rds")
 
 ### 4. Inclusion and Exclusion
 
-We included zip codes (ZCTAs) used by the NYC DOHMH and excluded zip codes that had a residential ratio of 0.
+We included zip codes (ZCTAs) used by the NYC DOHMH and excluded zip
+codes that had a residential ratio of 0.
 
-```{r}
+``` r
 # Include: NYC DOHMH zip codes only
 xwalk_zip_tract_nyc_prelim <- xwalk_zip_tract %>%
   dplyr::select(ZIP, TRACT, RES_RATIO) %>% 
@@ -73,13 +112,17 @@ xwalk_zip_tract_nyc <- xwalk_zip_tract_nyc_prelim %>%
 
 Recalculate the NEVI from tracts to zip codes with the following steps:
 
--   Multiplied the tract-level scores by the proportion of residential addresses in a given zip code within the Census tracts (residential ratio).
+-   Multiplied the tract-level scores by the proportion of residential
+    addresses in a given zip code within the Census tracts (residential
+    ratio).
 
 -   Summed up the scores weighted by the residential ratios by zip code.
 
--   Divided these summed scores by the summed residential ratios (because some zip codes did not fully overlap with NYC and therefore had a total residential ratio of \< 1).
+-   Divided these summed scores by the summed residential ratios
+    (because some zip codes did not fully overlap with NYC and therefore
+    had a total residential ratio of \< 1).
 
-```{r}
+``` r
 # Keep only columns needed to recalculate NEVI from tract to zip code
 nevi_tract_subset <- nevi_tract %>% 
   dplyr::rename(TRACT = Tract_FIPS) %>% 
@@ -117,7 +160,7 @@ nevi_zip_calc <- xwalk_zip_tract_nyc %>%
 
 ### 7. Export Zip Code-Level NEVI
 
-```{r}
+``` r
 export(nevi_zip_calc, 'data/processed/nevi_zip_final.csv')
 saveRDS(nevi_zip_calc, file = "data/processed/nevi_zip_final.rds")
 ```

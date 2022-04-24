@@ -1,18 +1,18 @@
----
-title: "Neighborhood Environmental Vulnerability Index, 2019: Cleaning NEVI Data from ToxPi GUI Output"
-author: 
-- "Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone"
-date: "3/29/2022"
-output: rmarkdown::github_document
----
+Neighborhood Environmental Vulnerability Index, 2019: Cleaning NEVI Data
+from ToxPi GUI Output
+================
+Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone
+3/29/2022
 
-Below are steps to clean the output from the ToxPi GUI that we used to calculate the NEVI.
+Below are steps to clean the output from the ToxPi GUI that we used to
+calculate the NEVI.
 
 ### 1. Set Working Directory
 
-Set the working directory to one folder up from the RMarkdown file for later data export.
+Set the working directory to one folder up from the RMarkdown file for
+later data export.
 
-```{r, setup}
+``` r
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
@@ -20,17 +20,34 @@ knitr::opts_knit$set(root.dir = '..')
 
 Load the following required libraries.
 
-```{r, libraries}
+``` r
 library(tidyverse)
+```
+
+    ## Warning: package 'tidyverse' was built under R version 4.1.3
+
+    ## -- Attaching packages --------------------------------------- tidyverse 1.3.1 --
+
+    ## v ggplot2 3.3.5     v purrr   0.3.4
+    ## v tibble  3.1.5     v dplyr   1.0.7
+    ## v tidyr   1.1.4     v stringr 1.4.0
+    ## v readr   2.0.2     v forcats 0.5.1
+
+    ## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+``` r
 library(rio)
 ```
 
+    ## Warning: package 'rio' was built under R version 4.1.3
 
 ### 3. Import the Index Generated from the ToxPi GUI
 
-Import the NEVI calculated from the ToxPi GUI to clean the dataset. 
+Import the NEVI calculated from the ToxPi GUI to clean the dataset.
 
-```{r, import_index}
+``` r
 tract_toxpi <- import('data/processed/preprocessing/toxpi/results/nevi_toxpi_results.csv')
 tract_nevi_features <- readRDS("data/processed/preprocessing/nevi_tract_features.rds")
 ```
@@ -39,7 +56,7 @@ tract_nevi_features <- readRDS("data/processed/preprocessing/nevi_tract_features
 
 Rename the subdomain slices and calculate domain-specific NEVI scores.
 
-```{r, clean_index}
+``` r
 # CLEAN: Data from ToxPi GUI
 tract_toxpi_clean <- tract_toxpi %>%
   dplyr::rename(SID = Source, nevi = `ToxPi Score`) %>% 
@@ -80,12 +97,25 @@ tract_toxpi_clean <- tract_toxpi %>%
                   score_healthstatus = (score_healthstatus_lifestyle + score_healthstatus_condition + score_healthstatus_preventive + score_healthstatus_lackinsurance)/4)
 ```
 
+    ## Warning: `funs()` was deprecated in dplyr 0.8.0.
+    ## Please use a list of either functions or lambdas: 
+    ## 
+    ##   # Simple named list: 
+    ##   list(mean = mean, median = median)
+    ## 
+    ##   # Auto named with `tibble::lst()`: 
+    ##   tibble::lst(mean, median)
+    ## 
+    ##   # Using lambdas
+    ##   list(~ mean(., trim = .2), ~ median(., na.rm = TRUE))
+    ## This warning is displayed once every 8 hours.
+    ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was generated.
 
 ### 5. Merge the NEVI with the NEVI features and clusters
 
 Merge the NEVI with NEVI features.
 
-```{r, merge_index}
+``` r
 tract_nevi <- tract_nevi_features %>% # NEVI features
   dplyr::left_join(tract_toxpi_clean, by = "SID") %>%  # NEVI (cleaned from the ToxPi GUI)
   dplyr::rename(Tract_FIPS = SID) %>% 
@@ -95,9 +125,10 @@ tract_nevi <- tract_nevi_features %>% # NEVI features
 
 ### 6. (Optional) Specify Counties/Boroughs
 
-Create a column specifying the New York City borough in which the Census tract is located.
+Create a column specifying the New York City borough in which the Census
+tract is located.
 
-```{r}
+``` r
 tract_nevi <- tract_nevi %>%
   dplyr::mutate(County_FIPS = substr(Tract_FIPS, 1, 5),
                 borough = case_when(
@@ -111,15 +142,12 @@ tract_nevi <- tract_nevi %>%
   dplyr::relocate(borough, .after = nevi)
 ```
 
-
 ### 7. Export data with the NEVI, features, and clusters
 
-After completing all importing and data cleaning steps, we exported our final dataset, which included the NEVI, NEVI features, and NEVI clusters.
+After completing all importing and data cleaning steps, we exported our
+final dataset, which included the NEVI, NEVI features, and NEVI
+clusters.
 
-```{r, export_final_data}
+``` r
 saveRDS(tract_nevi, file = "data/processed/preprocessing/nevi_tract_noclusters.rds")
 ```
-
-
-
-

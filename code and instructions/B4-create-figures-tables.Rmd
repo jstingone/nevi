@@ -1,21 +1,17 @@
 ---
 title: "Neighborhood Environmental Vulnerability Index, 2019: Create Figures and Tables"
 author: 
-- "Stephen P. Uong" 
-- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
-date: "10/28/2021"
-output: 
-  html_document: 
-    toc: true
-    toc_float: true
+- "Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone"
+date: "3/29/2022"
+output: rmarkdown::github_document
 ---
 
-Below are steps to create figures and tables for the NEVI.
+Below is coded we used to generate results and figures that we used to evaluate the NEVI and to comapre the NEVI to the Neighborhood Deprivation Index (NDI)/ Social Vulnerability Index (SVI).
 
-In this document, we have included code we used to generate results and figures that we used when evaluating the NEVI and comparing the NEVI to the Neighborhood Deprivation Index (NDI)/ Social Vulnerability Index (SVI).
+### 1. Set Working Directory
 
-### 1. Setup
 Set the working directory to one folder up from the RMarkdown file for later data export.
+
 ```{r, setup}
 knitr::opts_knit$set(root.dir = '..') 
 ```
@@ -23,16 +19,14 @@ knitr::opts_knit$set(root.dir = '..')
 ### 2. Load Required Libraries
 
 Load the following required libraries.
+
 ```{r, libraries}
 library(tidyverse)
 library(rio)
+library(factoextra)
+library(cluster)
 library(skimr)
 library(janitor)
-library(cluster)
-library(factoextra)
-# library(Amelia)
-# library(janitor)
-# library(cluster)
 # Mapping
 library(sf)
 library(ggpubr)
@@ -40,8 +34,7 @@ library(ggsn)
 library(ggspatial)
 library(nycgeo)
 library(tigris)
-# https://yutannihilation.github.io/ggsflabel/index.html
-library(ggsflabel) # devtools::install_github("yutannihilation/ggsflabel")
+library(ggsflabel) # Ref: https://yutannihilation.github.io/ggsflabel/index.html
 # Plots
 library(ggpubr)
 library(colorBlindness)
@@ -50,44 +43,30 @@ library(gplots) # heat map
 ```
 
 
-### 3: Importing the Index Generated from the ToxPi GUI, NEVI features, NDI, and SVI
+### 3: Import the NEVI, NDI, and SVI
 ```{r}
 setwd('C:/Users/steph/OneDrive - cumc.columbia.edu/Phi/My Courses/Columbia/Work/Research - Jeanette/projects/covid-vulnerability-index/comms/git nvi')
 
 ### IMPORT: Cleaned NEVI data with the NEVI, NEVI features, and NEVI clusters
-tract_final <- readRDS(file = "data/processed/nevi_final.rds")
-### IMPORT: NYC specific Census tract boundaries
-tract_nyc_spatial <- nycgeo::nyc_boundaries(geography = "tract") %>% 
-  dplyr::transmute(Tract_FIPS = geoid) %>% 
-  sf::st_transform(crs = 2263)
+tract_final <- readRDS(file = "data/processed/nevi_tract_final.rds")
+
+### IMPORT: NYC borough for each tract
 tract_nyc_borough <- nycgeo::nyc_boundaries(geography = "tract") %>% 
   dplyr::as_tibble() %>% 
   dplyr::select(-geometry) %>% 
   dplyr::transmute(Tract_FIPS = geoid,
                    borough = borough_name)
-borough_nyc_spatial <- nycgeo::nyc_boundaries(geography = "borough") %>%
-  dplyr::arrange(borough_name) %>% 
-  sf::st_transform(crs = 2263)
-
-### IMPORT: Toxpi data before cleaning (for 8 clusters)
-tract_toxpi_pre <- import('data/processed/toxpi/nevi_toxpi_results.csv')
-
-### IMPORT: Exclusions List
-tract_exclusions_list <- import("data/processed/EXCLUSION_LIST_20210628.csv")
-tract_exclusions_list_id <- tract_exclusions_list %>% 
-  dplyr::filter(flag_exclude_FINAL == 0) %>% 
-  dplyr::transmute(SID = as.character(GEOID))
 
 ### IMPORT: NDI, SVI
-ndi <- import("data/processed/NDI.NYC.2086t.csv")
-svi <- import("data/raw/svi.csv")
+ndi <- import("data/processed/other indices/Neighborhood Deprivation Index/ndi_tract.csv")
+svi <- import("data/processed/other indices/Social Vulnerability Index/svi.csv")
 
 ndi_clean <- ndi %>% dplyr::mutate(Tract_FIPS = GEOID %>% as.character() %>% str_pad(11,side="left",pad="0")) %>% dplyr::rename(ndi = NDI_score) %>% dplyr::select(Tract_FIPS, ndi) %>% 
   dplyr::left_join(tract_nyc_borough, by = "Tract_FIPS")
 svi_clean <- svi %>% dplyr::mutate(Tract_FIPS = FIPS %>% as.character() %>% str_pad(11,side="left",pad="0")) %>% dplyr::rename(svi = RPL_THEMES) %>% dplyr::select(Tract_FIPS, svi) %>% 
   dplyr::filter(svi != -999) %>% 
   dplyr::left_join(tract_nyc_borough, by = "Tract_FIPS") %>% 
-  dplyr::inner_join(tract_exclusions_list_id %>% dplyr::transmute(Tract_FIPS = SID), by = "Tract_FIPS")
+  dplyr::inner_join(tract_final %>% dplyr::select(Tract_FIPS), by = "Tract_FIPS")
 
 ## IMPORT: Race/ethnicity sensitivity analysis
 tract_toxpi_pre_raceeth_no_olap <- import('data/processed/toxpi/nevi_toxpi_raceeth_no_olap_results.csv')
@@ -97,6 +76,13 @@ tract_toxpi_pre_raceeth_hsub <- import('data/processed/toxpi/nevi_toxpi_raceeth_
 
 ### Create spatial objects
 ```{r}
+### IMPORT: NYC specific Census tract/borough boundaries
+tract_nyc_spatial <- nycgeo::nyc_boundaries(geography = "tract") %>% 
+  dplyr::transmute(Tract_FIPS = geoid) %>% 
+  sf::st_transform(crs = 2263)
+borough_nyc_spatial <- nycgeo::nyc_boundaries(geography = "borough") %>%
+  dplyr::arrange(borough_name) %>% 
+  sf::st_transform(crs = 2263)
 # Spatial: crs = "+init=epsg:2263"
   # Included
 tract_final_spatial <- tract_nyc_spatial %>% 
@@ -834,7 +820,7 @@ ggplot(data = fig5_df, aes(x = cluster_label, y = subdomain_label, fill = median
 ## EXPORT
 ggsave('figs/fig5.png', width = 10, height = 13)
 
-
+```
 
 ### SUPPLEMENTAL TABLE 1 & INFO FOR TEXT
 ```{r}

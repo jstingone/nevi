@@ -1,8 +1,7 @@
 ---
 title: "Neighborhood Environmental Vulnerability Index, 2019: Downloading U.S. Census Data"
 author: 
-- "Stephen P. Uong" 
-- "Contributors: Jiayi Zhou, Jeanette A. Stingone"
+- "Stephen P. Uong; Contributors: Jiayi Zhou, Jeanette A. Stingone"
 date: "3/29/2022"
 output: rmarkdown::github_document
 
