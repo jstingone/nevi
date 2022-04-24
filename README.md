@@ -45,14 +45,14 @@ You will need the following software, R packages, and data to calculate the NEVI
 - [R](https://cran.r-project.org/bin/windows/base/)
 - [RStudio](https://www.rstudio.com/products/rstudio/download/#download) or another R graphical user interface
 - [ToxPi Graphical User Interface](https://toxpi.org/)
-2. Run the following code in R to install the required packages:
-- These are needed for the creation of the NEVI. The cluster package is optional 
+2. Run the following code in R to install the following packages:
+- These required packages are needed for the creation of the NEVI. 
 	```installation_nevi	
-	install.packages(c(''tidyverse','tidycensus','rio','factoextra','cluster'), dependencies = TRUE)
+	install.packages(c(''tidyverse','tidycensus','rio'), dependencies = TRUE)
 	```
-- These are needed for the creation of clusters and related figures and tables.
+- These optional packages are needed for the creation of clusters and figures and tables presented in the manuscript.
 	```installation_figs_tabs
-	install.packages(c('skimr','janitor','factoextra','sf','ggpubr','ggsn','ggspatial','tigris','ggsflabel','ggpubr','colorBlindness','ggpattern','gplots'), dependencies = TRUE)
+	install.packages(c('factoextra','cluster','skimr','janitor','factoextra','sf','ggpubr','ggsn','ggspatial','tigris','ggsflabel','ggpubr','colorBlindness','ggpattern','gplots'), dependencies = TRUE)
 	devtools::install_github('yutannihilation/ggsflabel')
 	```
 3. We used the following versions of software and packages:
@@ -64,9 +64,9 @@ You will need the following software, R packages, and data to calculate the NEVI
 	- *`tidyverse`:* 1.3.1 
 	- *`tidycensus`:* 1.1.2 
 	- *`rio`:* 0.5.29 
+- **Optional Packages**
 	- *`cluster`:* 2.1.2 
 	- *`factoextra`:* 1.0.7 
-- **Optional Packages**
 	- *`skimr`:* 2.1.3 
 	- *`janitor`:* 2.1.0 
 	- *`sf`:* 1.0.3 
