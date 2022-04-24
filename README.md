@@ -17,7 +17,7 @@ The current version of the NEVI for NYC can be downloaded in the [`data/processe
 - CSV: [`nevi_zip_final.csv`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_zip_final.csv)
 - R Data file: [`nevi_zip_final.rds`](https://github.com/jstingone/nvi/blob/main/data/processed/nevi_zip_final.rds)
 
-![nevi plot](/figures and tables/figures/fig_nevi.png)
+![nevi plot](https://raw.githubusercontent.com/jstingone/nvi/main/figures%20and%20tables/figures/fig_nevi.png)
 
 ## 2. Folder Structure
 We have organized relevant files for the calculation of the NEVI in the following folders:
