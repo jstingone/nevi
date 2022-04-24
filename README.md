@@ -94,7 +94,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 
 
 ## 5. Code and Instructions
-To calculate the NEVI, you will need to follow the instructions in these documents in the `code and instructions` folder:
+To calculate the NEVI, you will need to follow the instructions in these documents in the `code and instructions` folder. Click on the corresponding markdown (.md) files to view the code and instructions directly online.
 - `A1-download-census-data.Rmd`: Download features from the U.S. Census American Community Survey needed to calculate the index
 - `A2-preprocess-nevi-features.Rmd`: Prepare features to input into ToxPi.
 - `A3-calculate-nevi-toxpi-gui.docx`: Calculate the NEVI and subdomain scores using Toxpi.
@@ -106,6 +106,16 @@ There are also other code available to accomplish optional tasks:
 - `B3-create-figures-tables.Rmd`: Create figures and tables presented in the manuscript.
 - `B4-calculate-nevi-zip.Rmd`: Calculate zip code-level NEVI from Census tract-level NEVI using residential ratios.
 
+## 6. Cloning this Repository with RStudio
+Below are steps to clone this repository to your local device with RStudio. Please refer to this [link](https://resources.github.com/github-and-rstudio/) for more information about using git in RStudio.
 
-## 6. Grant Information
+1. On top this page, click on `Code` and copy the link to this git repository (starts with https://github.com/...).
+2. Open RStudio.
+3. In RStudio, click on `File` &rarr; `New Project...` &rarr; `Version Control` &rarr; `Git`.
+4. Under "Repository URL", paste the link of the git repository.
+5. Under "Project directory name", name your project directory.
+6. Under "Create project as subdirectory of:", select the folder in which you would like your project directory to be located.
+7. Click on `Create Project` when you are done to clone your repository! This should take a minute or two to complete.
+
+## 7. Grant Information
 The creation of this index was conducted under contract to the Health Effects Institute (HEI), an organization jointly funded by the United States Environmental Protection Agency (EPA) (Assistance Award No. CR-83998101) and certain motor vehicle and engine manufacturers (#4985-RFA20-1B/21-8). The contents of this repository do not necessarily reflect the views of HEI, or its sponsors, nor do they necessarily reflect the views and policies of the EPA or motor vehicle and engine manufacturers. Additional funding was received from the Robert Wood Johnson Foundation (Amos Medical Faculty Development Award) and National Institutes of Health National Institute of Environmental Health Sciences (T32ES007322, R00ES027022, P30ES023515, and R01ES030717), National Institute of Diabetes and Digestive and Kidney Diseases (P30DK111022), and National Heart, Lung, and Blood Institute (K01HL140216).
