@@ -37,7 +37,7 @@ Import the following data files:
 
 ```{r, import_data}
 # Zip code list used by NYC DOHMH ZCTA list
-list_nyc_zip <- readr::read_csv('data/raw/Modified Zip Code Tabulation Areas/Modified_Zip_Code_Tabulation_Areas__MODZCTA_.csv') %>% 
+list_nyc_zip <- readr::read_csv('data/raw/NYC Modified Zip Code Tabulation Areas/Modified_Zip_Code_Tabulation_Areas__MODZCTA_.csv') %>% 
   dplyr::select(ZCTA) %>% 
   tidyr::separate_rows(ZCTA, sep = ',') %>% 
   dplyr::transmute(zip = trimws(ZCTA))
