@@ -19,7 +19,7 @@ The current version of the NEVI for NYC can be downloaded in the [`data/processe
 
 ![nevi plot](https://raw.githubusercontent.com/jstingone/nvi/main/figures%20and%20tables/figures/fig_nevi.png)
 
-## 2. Folder Structure
+## 3. Folder Structure
 We have organized relevant files for the calculation of the NEVI in the following folders:
 - `code and instructions`: Code for the calculation of the index
 - `data`: 
@@ -28,8 +28,8 @@ We have organized relevant files for the calculation of the NEVI in the followin
 - `figures and tables`: figures and tables created from our code
 
 
-## 3. Data Sources
-We used the two primary data sources for the following features used to calculate the NEVI:
+## 4. Data Sources
+We used two primary data sources for the following features used to calculate the NEVI:
 - [U.S. American Community Survey, 2015-2019 5-year estimates](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html): demographics, economic indicators, and residential characteristics
 	- Request a U.S. Census API key [here](https://api.census.gov/data/key_signup.html)
 - [U.S. Centers for Disease Control and Prevention PLACES, 2020](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk): health status information (health behaviors, conditions, preventive practices, and insurance access)
@@ -39,10 +39,10 @@ Other data sources used to create zip code-level NEVI:
 - [U.S. Department of Housing and Urban Development - Zip Code and Tract Crosswalk](https://www.huduser.gov/portal/datasets/usps_crosswalk.html)
 
 
-## 4. Requirements
+## 5. Requirements
 You will need the following software, R packages, and data to calculate the NEVI.
 
-### 4.1 Software and R Packages
+### 5.1 Software and R Packages
 1. Download the following software: 
 - [R](https://cran.r-project.org/bin/windows/base/)
 - [RStudio](https://www.rstudio.com/products/rstudio/download/#download) or another R graphical user interface
@@ -85,7 +85,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 	- *`gplots`:* 3.1.1 
 
 
-### 4.2 Data
+### 5.2 Data
 - U.S. Centers for Disease Control and Prevention PLACES 2020
 	- Download [here](https://chronicdata.cdc.gov/500-Cities-Places/PLACES-Local-Data-for-Better-Health-Place-Data-202/q8xq-ygsk).
 - U.S. American Community Survey, 5-year estimates from 2015-2019
@@ -93,7 +93,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 	- More information about the American Community 5-year estimates [here](https://www.census.gov/data/developers/data-sets/acs-5year.2019.html).
 
 
-## 5. Code and Instructions
+## 6. Code and Instructions
 To calculate the NEVI, you will need to follow the instructions in these documents in the `code and instructions` folder. Click on the corresponding markdown (.md) files to view the code and instructions directly online.
 - [`A1-download-census-data`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/A1-download-census-data.md): Download features from the U.S. Census American Community Survey needed to calculate the index 
 - [`A2-preprocess-nevi-features`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/A2-preprocess-nevi-features.md): Prepare features to input into ToxPi.
@@ -106,7 +106,7 @@ There are also other code available to accomplish optional tasks:
 - [`B3-create-figures-tables`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/B4-create-figures-tables.Rmd): Create figures and tables presented in the manuscript.
 - [`B4-calculate-nevi-zip`](https://github.com/jstingone/nvi/blob/main/code%20and%20instructions/B5-calculate-nevi-zip.md): Calculate zip code-level NEVI from Census tract-level NEVI using residential ratios.
 
-## 6. Cloning this Repository with RStudio
+## 7. Cloning this Repository with RStudio
 Below are steps to clone this repository to your local device with RStudio. Please refer to this [link](https://resources.github.com/github-and-rstudio/) for more information about using git in RStudio.
 
 1. On top this page, click on `Code` and copy the link to this git repository (starts with https://github.com/...).
@@ -117,5 +117,5 @@ Below are steps to clone this repository to your local device with RStudio. Plea
 6. Under "Create project as subdirectory of:", select the folder in which you would like your project directory to be located.
 7. Click on `Create Project` when you are done to clone your repository! This should take a minute or two to complete.
 
-## 7. Grant Information
+## 8. Grant Information
 The creation of this index was conducted under contract to the Health Effects Institute (HEI), an organization jointly funded by the United States Environmental Protection Agency (EPA) (Assistance Award No. CR-83998101) and certain motor vehicle and engine manufacturers (#4985-RFA20-1B/21-8). The contents of this repository do not necessarily reflect the views of HEI, or its sponsors, nor do they necessarily reflect the views and policies of the EPA or motor vehicle and engine manufacturers. Additional funding was received from the Robert Wood Johnson Foundation (Amos Medical Faculty Development Award) and National Institutes of Health National Institute of Environmental Health Sciences (T32ES007322, R00ES027022, P30ES023515, and R01ES030717), National Institute of Diabetes and Digestive and Kidney Diseases (P30DK111022), and National Heart, Lung, and Blood Institute (K01HL140216).
