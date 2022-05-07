@@ -50,7 +50,7 @@ You will need the following software, R packages, and data to calculate the NEVI
 2. Run the following code in R to install the following packages:
 - These required packages are needed for the creation of the NEVI. 
 	```installation_nevi	
-	install.packages(c(''tidyverse','tidycensus','rio'), dependencies = TRUE)
+	install.packages(c('tidyverse','tidycensus','rio'), dependencies = TRUE)
 	```
 - These optional packages are needed for the creation of clusters and figures and tables presented in the manuscript.
 	```installation_figs_tabs
