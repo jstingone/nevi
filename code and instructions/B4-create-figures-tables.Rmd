@@ -8,7 +8,9 @@ output: rmarkdown::github_document
 
 Below is coded we used to generate results and figures that we used to evaluate the NEVI and to comapre the NEVI to the Neighborhood Deprivation Index (NDI)/ Social Vulnerability Index (SVI).
 
-### 1. Set Working Directory
+## 1. Setup, Data Import, and Data Cleaning
+
+### 1.1. Set Working Directory
 
 Set the working directory to one folder up from the RMarkdown file for later data export.
 
@@ -16,7 +18,7 @@ Set the working directory to one folder up from the RMarkdown file for later dat
 knitr::opts_knit$set(root.dir = '..') 
 ```
 
-### 2. Load Required Libraries
+### 1.2. Load Required Libraries
 
 Load the following required libraries.
 
@@ -26,7 +28,9 @@ library(rio)
 library(factoextra)
 library(cluster)
 library(skimr)
+# Tables
 library(janitor)
+library(gtsummary)
 # Mapping
 library(sf)
 library(ggpubr)
@@ -42,8 +46,8 @@ library(ggpattern) # Ref: https://coolbutuseless.github.io/package/ggpattern/ind
 library(gplots) # heat map
 ```
 
+### 1.3: Import the NEVI, NDI, and SVI
 
-### 3: Import the NEVI, NDI, and SVI
 ```{r}
 setwd('C:/Users/steph/OneDrive - cumc.columbia.edu/Phi/My Courses/Columbia/Work/Research - Jeanette/projects/covid-vulnerability-index/comms/git nvi')
 
@@ -69,12 +73,13 @@ svi_clean <- svi %>% dplyr::mutate(Tract_FIPS = FIPS %>% as.character() %>% str_
   dplyr::inner_join(tract_final %>% dplyr::select(Tract_FIPS), by = "Tract_FIPS")
 
 ## IMPORT: Race/ethnicity sensitivity analysis
-tract_toxpi_pre_raceeth_no_olap <- import('data/processed/toxpi/nevi_toxpi_raceeth_no_olap_results.csv')
-tract_toxpi_pre_raceeth_olap <- import('data/processed/toxpi/nevi_toxpi_raceeth_olap_results.csv')
-tract_toxpi_pre_raceeth_hsub <- import('data/processed/toxpi/nevi_toxpi_raceeth_hsub_results.csv')
+tract_toxpi_pre_raceeth_no_olap <- import('data/processed/sensitivity analysis/race and ethnicity/toxpi/results/nevi_toxpi_raceeth_no_olap_results.csv')
+tract_toxpi_pre_raceeth_olap <- import('data/processed/sensitivity analysis/race and ethnicity/toxpi/results/nevi_toxpi_raceeth_olap_results.csv')
+tract_toxpi_pre_raceeth_hsub <- import('data/processed/sensitivity analysis/race and ethnicity/toxpi/results/nevi_toxpi_raceeth_hsub_results.csv')
 ```
 
-### Create spatial objects
+### 1.5. Create spatial objects
+
 ```{r}
 ### IMPORT: NYC specific Census tract/borough boundaries
 tract_nyc_spatial <- nycgeo::nyc_boundaries(geography = "tract") %>% 
@@ -92,9 +97,10 @@ tract_exclude_spatial <- tract_nyc_spatial %>%
   dplyr::anti_join(tract_final %>% dplyr::mutate(Tract_FIPS = as.character(Tract_FIPS) %>% trimws()), by = "Tract_FIPS") 
 ```
 
+## 2. Figures
 
-# FIGURES
-## FIGURE 1: Domains and subdomains
+### 2.1. Figure 1: NEVI and Domains
+
 ```{r mapping, include=FALSE}
 #### CREATE: Functions to create maps
 gen_fig1_main <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label, lab_borough){
@@ -107,10 +113,10 @@ gen_fig1_main <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_la
         # boroughs
     geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
     geom_sf_label_repel(data = dfborough, aes(label = !!sym(lab_borough)), force = 0, nudge_x = c(40000, -45000, -30000, 30000, 35000), nudge_y = c(20000, 20000, 10000, -50000, -20000), seed = 1, size = 6) +
-    ggsn::scalebar(data = dfborough, dist = 10, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "bottomright") + # scale bar
-    ggsn::north(data = dfborough, location = "topleft", symbol = 10, scale = 0.10) + # north arrow, symbol = 16, scale = 0.17
-        # Alt: ggspatial::annotation_north_arrow(pad_x = unit(2.5, "cm"), pad_y = unit(-1.75, "cm")) +
-        # Alt: ggspatial::annotation_scale(plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")) #bgcolor("lightcyan") + #snow2 
+    ggspatial::annotation_north_arrow(location = 'tl', height = unit(1.3,'cm'), width = unit(1.5, 'cm'), pad_x = unit(1.5, "cm"), pad_y = unit(1.5, "cm"), style = north_arrow_orienteering(fill = c('black','black'), text_size = 11)) +
+    ggsn::scalebar(data = dfborough, dist = 10, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "bottomright") +
+        # Alt: ggsn::north(data = dfborough, location = "topleft", symbol = 10, scale = 0.10) + # use the ggspatial package in order to export to .eps properly
+        # Alt: ggspatial::annotation_scale(plot_unit = "mi", location = 'br') + #bgcolor("lightcyan") + #snow2 #plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")
     labs(fill = fill_label) + 
     scale_fill_gradient(low = "whitesmoke", high = fill_color) + # na.value = "gray30"
     theme(legend.title = element_text(face = "bold", size = 15), # plot.title = element_text(hjust = 0.75, face = "bold", size = 15),
@@ -142,6 +148,8 @@ gen_fig1_part <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_la
   return(plot_choro)
 }
 
+
+
 ### CREATE: Maps
   # Overall Index
 fig1_toxpi <- gen_fig1_main(dfin = tract_final_spatial, dfexcl = tract_exclude_spatial, dfborough = borough_nyc_spatial, fill_var = "nevi", fill_color = '#954100',
@@ -161,14 +169,18 @@ fig1_part3 <- ggarrange(fig1_hlth, labels = "E", font.label = list(size = 25)) +
 ## EXPORT
 fig1_part1
 ggsave('figures and tables/figures/fig1_part1.png', width = 10, height = 15) # pixels: 1200 x 900, width = 15, height = 12
+ggsave('figures and tables/figures/eps/fig1_part1.eps', width = 10, height = 15)
 fig1_part2
 ggsave('figures and tables/figures/fig1_part2.png', width = 10, height = 15) 
+ggsave('figures and tables/figures/eps/fig1_part2.eps', width = 10, height = 15) 
 fig1_part3
 ggsave('figures and tables/figures/fig1_part3.png', width = 10, height = 8) 
+ggsave('figures and tables/figures/eps/fig1_part3.eps', width = 10, height = 8) 
 
 ```
 
-## FIGURE 2. MAP: NEVI, NDI, SVI
+### 2.2. Figure 2. Map - NEVI, NDI, SVI
+
 ```{r}
 #### CREATE: Functions to create maps
 gen_fig2_main <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_label){
@@ -177,10 +189,10 @@ gen_fig2_main <- function(dfin, dfexcl, dfborough, fill_var, fill_color, fill_la
     geom_sf(data = dfexcl, color = "gray30", fill = "gray30") + 
     geom_sf(data = dfborough, color = 'gray20', fill = NA, size = 0.6) +
     theme_minimal() + # Alt: ggthemes::theme_map()
-    ggsn::scalebar(data = dfin, dist = 20, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "topleft") + # scale bar, bottomright
-    ggsn::north(data = dfin, location = "bottomright", symbol = 10, scale = 0.10) + # north arrow, symbol = 16, scale = 0.17, topleft
-        # Alt: ggspatial::annotation_north_arrow(pad_x = unit(2.5, "cm"), pad_y = unit(-1.75, "cm")) +
-        # Alt: ggspatial::annotation_scale(plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")) #bgcolor("lightcyan") + #snow2 
+    ggspatial::annotation_north_arrow(location = 'br', height = unit(1,'cm'), width = unit(1.1, 'cm'), pad_x = unit(1.5, "cm"), pad_y = unit(0.5, "cm"), style = north_arrow_orienteering(fill = c('black','black'), text_size = 11)) +
+    ggsn::scalebar(data = dfin, dist = 20, dist_unit = "mi", height = 0.01, st.size = 5, st.dist = 0.05, transform = FALSE, model = 'WGS84', location = "topleft") +
+        # Alt: ggsn::north(data = dfborough, location = "topleft", symbol = 10, scale = 0.10) + # use the ggspatial package in order to export to .eps properly
+        # Alt: ggspatial::annotation_scale(plot_unit = "mi", location = 'br') + #bgcolor("lightcyan") + #snow2 #plot_unit = "mi", pad_x = unit(7.5, "cm"), pad_y = unit(-1, "cm")
     labs(fill = fill_label) + 
     #scale_fill_gradient(low = "whitesmoke", high = fill_color) + # na.value = "gray30"
     scale_fill_manual(values = fill_color, guide = guide_legend(direction = "horizontal", title.position = "top")) + # cannot seem to get title to center: title.hjust = 0.5
@@ -234,10 +246,11 @@ fig2 <- ggarrange(fig2_toxpi, fig2_ndi, fig2_svi, ncol = 3, labels = c("A","B","
 # fig2 <- ggarrange(fig2_toxpi, ggarrange(fig2_ndi, fig2_svi, nrow = 2, labels = "B", font.label = list(size = 25)), ncol = 2, labels = "A", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 2, l = 0, "cm"))
 fig2
 ggsave('figures and tables/figures/fig2.png', width = 13, height = 6) # pixels: 1200 x 900 width = 13, height = 12
-
+ggsave('figures and tables/figures/eps/fig2.eps', width = 13, height = 6)
 ```
 
-## FIGURE 3 / SUPPLEMENTAL FIGURE 2. Scatter plots
+### 2.3. Figure 3 / Supplemental Figure 2 - Scatter plots NEVI vs. NDI/SVI
+
 ```{r}
 ### CREATE: Function to generate scatterplots
   # Ref, stat_cor: https://www.rdocumentation.org/packages/ggpubr/versions/0.4.0/topics/stat_cor
@@ -283,13 +296,14 @@ figs2_svi <- gen_fig3_scatterplot(datain = fig3_df, var = "svi", var_label = "So
 ### EXPORT: Plots
 fig3_ndi
 ggsave('figures and tables/figures/fig3.png', width = 15, height = 12)
+ggsave('figures and tables/figures/eps/fig3.eps', device = cairo_ps, width = 15, height = 12)
 figs2_svi
 ggsave('figures and tables/figures/figs2.png', width = 15, height = 12)
-
-
+ggsave('figures and tables/figures/eps/figs2.eps', device = cairo_ps, width = 15, height = 12)
 ```
 
-## FIGURE 4 - PART B (CLUSTER MAP + CLUSTER PROFILE)
+### 2.4. Figure 4 - NEVI Cluster Map + Cluster Profile
+
 ```{r}
 ## CHECK WHICH CLUSTERS TRACTS WERE IN
 tract_final %>% filter(Tract_FIPS %in% c('36047051900','36081067100')) %>% select(Tract_FIPS, borough, nevi, nevi_cluster, score_demo, score_economic, score_residential, score_healthstatus) # Queens tract: 4, Kings tract: 6
@@ -386,17 +400,23 @@ fig4b <- ggarrange(fig4_part1, ggarrange(fig4_part2, ggplot() + theme_void(), nc
 fig4b
 # EXPORT
 ggsave('figures and tables/figures/fig4_part.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
-
+ggsave('figures and tables/figures/eps/fig4_part.eps', width = 7, height = 9)
 # View average NEVI domains scores by cluster for text
 fig4b_part1_df %>% distinct(nevi_cluster, mean_nevi, iqr_nevi)
 
 ```
 
+### 2.5. Figure 5 - NEVI Cluster Subdomains Heatmap
 
-### FIGURE 5: HEATMAP
 ```{r}
 ### CREATE: Heat maps to visualize clustering by subdomain
-## PREPARE DATA
+## Specify Labels
+subdomain_vector <- c(
+  'score_demo_age', 'score_demo_femaleled', 'score_demo_immigration', 'score_demo_disability', 'score_demo_singleparent', 'score_demo_mobility', 'score_demo_livealone',
+  'score_economic_incomepoverty', 'score_economic_servicemanual', 'score_economic_gini', 'score_economic_employment', 'score_economic_education', 'score_economic_vehicleavail',
+  'score_residential_popdensity', 'score_residential_groupquarters', 'score_residential_occperroom', 'score_residential_structage', 'score_residential_structattach', 'score_residential_move1yr', 'score_residential_vacancy',
+  'score_healthstatus_lifestyle', 'score_healthstatus_condition', 'score_healthstatus_preventive', 'score_healthstatus_lackinsurance'
+)
 subdomain_label_vector <- c(
   'Age','Female-Led Households','Immigration','Disability','Single Parent Households','Transportation','Single Households',
   'Income and Poverty','Occupation','Income Inequality','Employment Status','Education','Vehicle Availability',
@@ -404,60 +424,29 @@ subdomain_label_vector <- c(
   'Health Behaviors','Health Conditions','Prevention Practices','Health Insurance Status'
 )
 domain_label_vector <- c('Demographic\n Domain', 'Economic Indicators\n Domain', 'Residential\n Domain', 'Health Status\n Domain')
-fig5_df <- stab5 %>% 
-  dplyr::as_tibble(rownames = 'subdomain') %>% 
-  dplyr::filter(!row_number() %in% c(1,2,3)) %>% 
-  dplyr::transmute(subdomain = subdomain,
-                   cluster1 = str_sub(V1, 1L, 4L) %>% as.numeric,
-                   cluster2 = str_sub(V2, 1L, 4L) %>% as.numeric,
-                   cluster3 = str_sub(V3, 1L, 4L) %>% as.numeric,
-                   cluster4 = str_sub(V4, 1L, 4L) %>% as.numeric,
-                   cluster5 = str_sub(V5, 1L, 4L) %>% as.numeric,
-                   cluster6 = str_sub(V6, 1L, 4L) %>% as.numeric,
-                   subdomain_label = case_when(
-                     subdomain == 'score_demo_age_median_iqr' ~ subdomain_label_vector[1],
-                     subdomain == 'score_demo_femaleled_median_iqr' ~ subdomain_label_vector[2],
-                     subdomain == 'score_demo_immigration_median_iqr' ~ subdomain_label_vector[3],
-                     subdomain == 'score_demo_disability_median_iqr' ~ subdomain_label_vector[4],
-                     subdomain == 'score_demo_singleparent_median_iqr' ~ subdomain_label_vector[5],
-                     subdomain == 'score_demo_mobility_median_iqr' ~ subdomain_label_vector[6],
-                     subdomain == 'score_demo_livealone_median_iqr' ~ subdomain_label_vector[7],
-                     subdomain == 'score_economic_incomepoverty_median_iqr' ~ subdomain_label_vector[8],
-                     subdomain == 'score_economic_servicemanual_median_iqr' ~ subdomain_label_vector[9],
-                     subdomain == 'score_economic_gini_median_iqr' ~ subdomain_label_vector[10],
-                     subdomain == 'score_economic_employment_median_iqr' ~ subdomain_label_vector[11],
-                     subdomain == 'score_economic_education_median_iqr' ~ subdomain_label_vector[12],
-                     subdomain == 'score_economic_vehicleavail_median_iqr' ~ subdomain_label_vector[13],
-                     subdomain == 'score_residential_popdensity_median_iqr' ~ subdomain_label_vector[14],
-                     subdomain == 'score_residential_groupquarters_median_iqr' ~ subdomain_label_vector[15],
-                     subdomain == 'score_residential_occperroom_median_iqr' ~ subdomain_label_vector[16],
-                     subdomain == 'score_residential_structage_median_iqr' ~ subdomain_label_vector[17],
-                     subdomain == 'score_residential_structattach_median_iqr' ~ subdomain_label_vector[18],
-                     subdomain == 'score_residential_move1yr_median_iqr' ~ subdomain_label_vector[19],
-                     subdomain == 'score_residential_vacancy_median_iqr' ~ subdomain_label_vector[20],
-                     subdomain == 'score_healthstatus_lifestyle_median_iqr' ~ subdomain_label_vector[21],
-                     subdomain == 'score_healthstatus_condition_median_iqr' ~ subdomain_label_vector[22],
-                     subdomain == 'score_healthstatus_preventive_median_iqr' ~ subdomain_label_vector[23],
-                     subdomain == 'score_healthstatus_lackinsurance_median_iqr' ~ subdomain_label_vector[24]
-                   ) %>% factor(levels = subdomain_label_vector, ordered = TRUE), 
-                   domain = case_when(
-                     stringr::str_detect(subdomain, 'demo') ~ domain_label_vector[1],
-                     stringr::str_detect(subdomain, 'economic') ~ domain_label_vector[2],
-                     stringr::str_detect(subdomain, 'residential') ~ domain_label_vector[3],
-                     stringr::str_detect(subdomain, 'healthstatus') ~ domain_label_vector[4]
-                   ) %>% factor(levels = domain_label_vector, ordered = TRUE)) %>%  
-  dplyr::select(-subdomain) %>% 
-  tidyr::pivot_longer(cols = starts_with('cluster'), names_to = 'cluster', names_prefix = 'cluster', values_to = 'median') %>% 
-  dplyr::mutate(cluster_label = case_when(
-    cluster == '1' ~ '1\n(n = 435)',
-    cluster == '2' ~ '2\n(n = 331)',
-    cluster == '3' ~ '3\n(n = 903)',
-    cluster == '4' ~ '4\n(n = 5)',
-    cluster == '5' ~ '5\n(n = 241)',
-    cluster == '6' ~ '6\n(n = 171)'
-  )) %>% 
+## PREPARE DATA
+fig5_df<- tract_final %>%
+  dplyr::select(nevi_cluster, score_demo_age, score_demo_femaleled, score_demo_immigration, score_demo_disability, score_demo_singleparent, score_demo_mobility, score_demo_livealone,
+                score_economic_incomepoverty, score_economic_servicemanual, score_economic_gini, score_economic_employment, score_economic_education, score_economic_vehicleavail,
+                score_residential_popdensity, score_residential_groupquarters, score_residential_occperroom, score_residential_structage, score_residential_structattach, score_residential_move1yr, score_residential_vacancy,
+                score_healthstatus_lifestyle, score_healthstatus_condition, score_healthstatus_preventive, score_healthstatus_lackinsurance) %>%
+  gtsummary::tbl_summary(by = nevi_cluster, statistic = all_continuous() ~ "{median}") %>% 
+  dplyr::as_tibble() %>%
+  dplyr::rename(subdomain = tidyselect::contains('Characteristic')) %>%
+  dplyr::rename_at(vars(tidyselect::matches('\\d')), # Identifies cluster columns (2-7) to rename
+                   .funs = ~ paste0(stringr::str_extract(., '\\d'),'\n(n', stringr::str_extract(., ' = \\d+'),')')) %>% # Renames to desired cluster label from tbl_summary output (e.g., "**1**, N = 435" --> "1\n(n = 435)")
+  dplyr::mutate(
+    subdomain_label = case_when(TRUE ~ rlang::set_names(subdomain_label_vector, nm = subdomain_vector)[subdomain]) %>% # Use a named vector to specify labels for certain variable names
+                               factor(levels = subdomain_label_vector, ordered = TRUE), 
+    domain = case_when(stringr::str_detect(subdomain, 'demo') ~ domain_label_vector[1],
+                       stringr::str_detect(subdomain, 'economic') ~ domain_label_vector[2],
+                       stringr::str_detect(subdomain, 'residential') ~ domain_label_vector[3],
+                       stringr::str_detect(subdomain, 'healthstatus') ~ domain_label_vector[4]) %>% 
+                       factor(levels = domain_label_vector, ordered = TRUE)) %>% 
+  tidyr::pivot_longer(cols = contains('\n'), names_to = 'cluster_label', values_to = 'median') %>% 
+  dplyr::mutate(median = as.numeric(median)) %>%
   dplyr::group_by(subdomain_label) %>% 
-  dplyr::mutate(median_scaled = scale(median))
+  dplyr::mutate(median_scaled = scale(median)[,1]) 
 
 ##### CREATE: heatmap 
 ggplot(data = fig5_df, aes(x = cluster_label, y = subdomain_label, fill = median_scaled)) +
@@ -473,12 +462,16 @@ ggplot(data = fig5_df, aes(x = cluster_label, y = subdomain_label, fill = median
         strip.text = element_text(size = 16),
         legend.title = element_text(size = 16), legend.text = element_text(size = 14),
         legend.position = 'top', legend.key.width = unit(1.5, 'cm'), legend.spacing.x = unit(1, 'cm'))
+
 ## EXPORT
 ggsave('figures and tables/figures/fig5.png', width = 10, height = 13)
+ggsave('figures and tables/figures/eps/fig5.eps', width = 10, height = 13)
 ```
 
+## 3. Supplemental Figures and Tables
 
-## SUPPLEMENTAL FIGURE 1. Box plots
+### 3.1. S Figure 1 - Box plots of NEVI and Domain Distributions
+
 ```{r}
 # note changed colors for overall and residential
 figs1_df <- tract_final %>% 
@@ -523,9 +516,11 @@ figs1c <- ggplot(figs1_df %>% filter(part == 'SVI'), aes(y = borough, x = index,
 figs1 <- ggarrange(figs1a, figs1b, figs1c, nrow = 3, font.label = list(size = 25), align = "v", heights = c(4,1,1)) #labels = fig3_labs,
 annotate_figure(figs1,left = text_grob("Borough", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
 ggsave('figures and tables/figures/figs1.png', width = 15, height = 16)
+ggsave('figures and tables/figures/eps/figs1.eps', width = 15, height = 16)
 ```
 
-### SUPPLEMENTAL FIGURE 3 Sensitivity analysis: Race and ethnicity
+### 3.2. S Figure 3 - Race and ethnicity Sensitivity Analyssis - Score Distributions
+
 ```{r}
 ### Clean data 
 # CREATE: Function
@@ -569,6 +564,7 @@ clean_toxpi_sa <- function(datain, databorough){
     dplyr::left_join(databorough, by = "Tract_FIPS")
   return(dataout)
 }
+
 # DATA CLEANING
   # Race/eth: no overlapping
 tract_toxpi_raceeth_no_olap_df <- clean_toxpi_sa(tract_toxpi_pre_raceeth_no_olap, tract_nyc_borough) %>% 
@@ -612,10 +608,11 @@ figs3 <- ggarrange(figs3a, figs3b, nrow = 2, font.label = list(size = 25), align
 
 figs3_export <- annotate_figure(figs3,left = text_grob("Borough", rot = 90, hjust = 1, size = 20), bottom = text_grob("Index", size = 20))
 ggsave('figures and tables/figures/figs3.png', plot = figs3_export, width = 10, height = 10)
-
+ggsave('figures and tables/figures/eps/figs3.eps', plot = figs3_export, width = 10, height = 10)
 ```
 
-## SUPPLEMENTAL FIGURE 4 - RACE AND ETHNICITY CLUSTER MAP + PROFILE (SIMILAR TO FIG4)
+### 3.3. S Figure 4 - Race and Ethnicity Cluster Map + Profile (Similar to Figure 4)
+
 ```{r}
 ## CREATE: Clusters: NEVI with non-overlapping race and ethnicity features
 set.seed(123)
@@ -733,96 +730,12 @@ figs4b <- ggarrange(figs4_part1, figs4_part2, nrow = 2) + theme(plot.margin = ma
 figs4b
 # EXPORT
 ggsave('figures and tables/figures/figs4.png', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
+ggsave('figures and tables/figures/eps/figs4.eps', width = 7, height = 9) # pixels: 1200 x 900 width = 13, height = 12
 
 ```
 
+### 3.4. S Table 1 & Summary Statistics for Text
 
-### FIGURE 5: HEATMAP
-```{r}
-### CREATE: Heat maps to visualize clustering by subdomain
-## PREPARE DATA
-subdomain_label_vector <- c(
-  'Age','Female-Led Households','Immigration','Disability','Single Parent Households','Transportation','Single Households',
-  'Income and Poverty','Occupation','Income Inequality','Employment Status','Education','Vehicle Availability',
-  'Population Density','Group Quarters','Household Density','Age of Housing Structure','Units in Housing Structure','Residential Mobility','Vacancy',
-  'Health Behaviors','Health Conditions','Prevention Practices','Health Insurance Status'
-)
-domain_label_vector <- c('Demographic\n Domain', 'Economic Indicators\n Domain', 'Residential\n Domain', 'Health Status\n Domain')
-fig5_df <- stab5 %>% 
-  dplyr::as_tibble(rownames = 'subdomain') %>% 
-  dplyr::filter(!row_number() %in% c(1,2,3)) %>% 
-  dplyr::transmute(subdomain = subdomain,
-                   cluster1 = str_sub(V1, 1L, 4L) %>% as.numeric,
-                   cluster2 = str_sub(V2, 1L, 4L) %>% as.numeric,
-                   cluster3 = str_sub(V3, 1L, 4L) %>% as.numeric,
-                   cluster4 = str_sub(V4, 1L, 4L) %>% as.numeric,
-                   cluster5 = str_sub(V5, 1L, 4L) %>% as.numeric,
-                   cluster6 = str_sub(V6, 1L, 4L) %>% as.numeric,
-                   subdomain_label = case_when(
-                     subdomain == 'score_demo_age_median_iqr' ~ subdomain_label_vector[1],
-                     subdomain == 'score_demo_femaleled_median_iqr' ~ subdomain_label_vector[2],
-                     subdomain == 'score_demo_immigration_median_iqr' ~ subdomain_label_vector[3],
-                     subdomain == 'score_demo_disability_median_iqr' ~ subdomain_label_vector[4],
-                     subdomain == 'score_demo_singleparent_median_iqr' ~ subdomain_label_vector[5],
-                     subdomain == 'score_demo_mobility_median_iqr' ~ subdomain_label_vector[6],
-                     subdomain == 'score_demo_livealone_median_iqr' ~ subdomain_label_vector[7],
-                     subdomain == 'score_economic_incomepoverty_median_iqr' ~ subdomain_label_vector[8],
-                     subdomain == 'score_economic_servicemanual_median_iqr' ~ subdomain_label_vector[9],
-                     subdomain == 'score_economic_gini_median_iqr' ~ subdomain_label_vector[10],
-                     subdomain == 'score_economic_employment_median_iqr' ~ subdomain_label_vector[11],
-                     subdomain == 'score_economic_education_median_iqr' ~ subdomain_label_vector[12],
-                     subdomain == 'score_economic_vehicleavail_median_iqr' ~ subdomain_label_vector[13],
-                     subdomain == 'score_residential_popdensity_median_iqr' ~ subdomain_label_vector[14],
-                     subdomain == 'score_residential_groupquarters_median_iqr' ~ subdomain_label_vector[15],
-                     subdomain == 'score_residential_occperroom_median_iqr' ~ subdomain_label_vector[16],
-                     subdomain == 'score_residential_structage_median_iqr' ~ subdomain_label_vector[17],
-                     subdomain == 'score_residential_structattach_median_iqr' ~ subdomain_label_vector[18],
-                     subdomain == 'score_residential_move1yr_median_iqr' ~ subdomain_label_vector[19],
-                     subdomain == 'score_residential_vacancy_median_iqr' ~ subdomain_label_vector[20],
-                     subdomain == 'score_healthstatus_lifestyle_median_iqr' ~ subdomain_label_vector[21],
-                     subdomain == 'score_healthstatus_condition_median_iqr' ~ subdomain_label_vector[22],
-                     subdomain == 'score_healthstatus_preventive_median_iqr' ~ subdomain_label_vector[23],
-                     subdomain == 'score_healthstatus_lackinsurance_median_iqr' ~ subdomain_label_vector[24]
-                   ) %>% factor(levels = subdomain_label_vector, ordered = TRUE), 
-                   domain = case_when(
-                     stringr::str_detect(subdomain, 'demo') ~ domain_label_vector[1],
-                     stringr::str_detect(subdomain, 'economic') ~ domain_label_vector[2],
-                     stringr::str_detect(subdomain, 'residential') ~ domain_label_vector[3],
-                     stringr::str_detect(subdomain, 'healthstatus') ~ domain_label_vector[4]
-                   ) %>% factor(levels = domain_label_vector, ordered = TRUE)) %>%  
-  dplyr::select(-subdomain) %>% 
-  tidyr::pivot_longer(cols = starts_with('cluster'), names_to = 'cluster', names_prefix = 'cluster', values_to = 'median') %>% 
-  dplyr::mutate(cluster_label = case_when(
-    cluster == '1' ~ '1\n(n = 435)',
-    cluster == '2' ~ '2\n(n = 331)',
-    cluster == '3' ~ '3\n(n = 903)',
-    cluster == '4' ~ '4\n(n = 5)',
-    cluster == '5' ~ '5\n(n = 241)',
-    cluster == '6' ~ '6\n(n = 171)'
-  )) %>% 
-  dplyr::group_by(subdomain_label) %>% 
-  dplyr::mutate(median_scaled = scale(median))
-
-##### CREATE: heatmap 
-ggplot(data = fig5_df, aes(x = cluster_label, y = subdomain_label, fill = median_scaled)) +
-  geom_tile() + 
-  facet_grid(domain ~ ., scales = 'free_y', space = 'free_y') +
-  scale_y_discrete(limits = rev) +
-  scale_fill_gradient(low = 'white', high = 'red') +
-  labs(x = 'NEVI Cluster', y = 'Subdomain', fill = "Median Score (Scaled)") +
-  theme_minimal() +
-  theme(plot.background = element_rect(fill = 'white', color = 'white'),
-        axis.title.x = element_text(size = 20, margin = margin(t = 10)), axis.text.x = element_text(size = 15),
-        axis.title.y = element_text(size = 20, margin = margin(t = 5)), axis.text.y = element_text(size = 15), 
-        strip.text = element_text(size = 16),
-        legend.title = element_text(size = 16), legend.text = element_text(size = 14),
-        legend.position = 'top', legend.key.width = unit(1.5, 'cm'), legend.spacing.x = unit(1, 'cm'))
-## EXPORT
-ggsave('figures and tables/figures/fig5.png', width = 10, height = 13)
-
-```
-
-### SUPPLEMENTAL TABLE 1 & INFO FOR TEXT
 ```{r}
 # Prep data
 stab1_df <- tract_final %>% 
@@ -865,8 +778,8 @@ cor.test(stab1_df$nevi, stab1_df$svi, method = "spearman")
 
 ```
 
+### 3.5. S Table 5: NEVI Cluster summaries
 
-### SUPPLEMENTAL TABLE 5: Cluster summaries
 ```{r}
 # Function to generate summary stats
 gen_stab4 <- function(dfin, var){
@@ -921,9 +834,3 @@ stab4 <- tract_final %>%
 export(stab4, 'figures and tables/tables/stab4.xlsx', row.names = TRUE)
 
 ```
-
-
-
-
-
-
