@@ -166,6 +166,15 @@ fig1_part1 <- ggarrange(fig1_toxpi, fig1_demo, nrow = 2, labels = c("A","B"), al
 fig1_part2 <- ggarrange(fig1_econ, fig1_resd, nrow = 2, labels = c("C","D"), align = "v", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm"))
 fig1_part3 <- ggarrange(fig1_hlth, labels = "E", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm"))
 
+### 3 subplots together in one
+  # Changed pad_x and pad_y to 1.5 --> 0.25
+fig1_all <- ggarrange(fig1_part1, fig1_part2, 
+          ggarrange(fig1_hlth, ggplot() + theme_minimal(), nrow = 2, labels = "E", font.label = list(size = 25)) + theme(plot.margin = margin(t = 0, r = 0, b = 1, l = 0, "cm")), ncol = 3)
+
+
+
+
+
 ## EXPORT
 fig1_part1
 ggsave('figures and tables/figures/fig1_part1.png', width = 10, height = 15) # pixels: 1200 x 900, width = 15, height = 12
@@ -176,6 +185,9 @@ ggsave('figures and tables/figures/eps/fig1_part2.eps', width = 10, height = 15)
 fig1_part3
 ggsave('figures and tables/figures/fig1_part3.png', width = 10, height = 8) 
 ggsave('figures and tables/figures/eps/fig1_part3.eps', width = 10, height = 8) 
+fig1_all
+ggsave('figures and tables/figures/fig1_all.png', width = 20, height = 8) 
+ggsave('figures and tables/figures/eps/fig1_all.eps', width = 20, height = 8) 
 
 ```
 
