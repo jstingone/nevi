@@ -246,6 +246,7 @@ We exported our data into a spreadsheet with the NEVI features with and without 
 ```{r, export_features}
 export(toxpi_export, "data/processed/preprocessing/nevi_tract_features_toxpiheader.csv", col.names = FALSE)
 saveRDS(tract_nevi_features_final, "data/processed/preprocessing/nevi_tract_features.rds")
+export(census_clean, "data/processed/preprocessing/nevi_tract_features_beforesubset.csv", col.names = FALSE)
 ```
 
 ### 7. (Optional) Repeat Steps 5-6 for Sensitivity Analysis of Race and Ethnicity
