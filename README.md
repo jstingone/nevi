@@ -1,7 +1,9 @@
 # Neighborhood Environmental Vulnerability Index 
 ***
 
-**Citation:** We are in the process of preparing a manuscript describing the creation of this vulnerability index and will include a citation here when it is available. Our upcoming manuscript will include more information about the creation and potential applications of the index.
+**Citation:** We are in the process of finding a journal for a manuscript describing the creation of this vulnerability index and will include a journal citation here when it is available. Our upcoming manuscript will include more information about the creation and potential applications of the index. Meanwhile, below is our citation on a preprint server:
+
+Uong SP, Zhou J, Lovinsky-Desir S, et al. The Creation of a Multidomain Neighborhood Environmental Vulnerability Index. *medRxiv*. Published online January 1, 2022:2022.12.14.22283064. doi:10.1101/2022.12.14.22283064
 
 ## 1. Overview
 We developed a Neighborhood Environmental Vulnerability Index (NEVI) to measure vulnerability to environmental pollution using publicly available data. We applied the [Toxicological Prioritization Index (ToxPi)](https://toxpi.org/) to integrate data across different domains, characterize neighborhood vulnerability to environmental pollution in New York City (NYC), and determine if sources of vulnerability varied across neighborhoods.
