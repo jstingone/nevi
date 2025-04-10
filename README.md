@@ -1,7 +1,11 @@
 # Neighborhood Environmental Vulnerability Index 
 ***
 
-**Citation:** We are in the process of finding a journal for a manuscript describing the creation of this vulnerability index and will include a journal citation here when it is available. Our upcoming manuscript will include more information about the creation and potential applications of the index. Meanwhile, below is our citation on a preprint server:
+**Citation:** The creation of the neighborhood environmental vulnerability index was published in the Journal of Urban Health. The citation is as follows:
+
+Uong S, Zhou J, Lovinsky-Desir S, Albrecht SS, Azan A, Chambers EC, Sheffield PE, Thompson A, Wilson J, Woo Baidal J, Stingone JA. The creation of a multidomain neighborhood environmental vulnerability index across New York City. Journal of Urban Health 2023; 100(5):1007-1023.
+
+Previously, our paper was posted on a preprint server:
 
 Uong SP, Zhou J, Lovinsky-Desir S, et al. The Creation of a Multidomain Neighborhood Environmental Vulnerability Index. *medRxiv*. Published online January 1, 2022:2022.12.14.22283064. doi:10.1101/2022.12.14.22283064
 
